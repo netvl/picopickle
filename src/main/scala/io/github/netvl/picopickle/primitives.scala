@@ -1,4 +1,4 @@
-package com.github.netvl.picopickle
+package io.github.netvl.picopickle
 
 trait PrimitiveWriters {
   implicit val intWriter: Writer[Int] = new Writer[Int] {

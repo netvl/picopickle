@@ -1,4 +1,4 @@
-package com.github.netvl.picopickle
+package io.github.netvl.picopickle
 
 import shapeless.syntax.typeable._
 

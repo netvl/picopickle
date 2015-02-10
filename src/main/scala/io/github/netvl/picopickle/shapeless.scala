@@ -1,9 +1,17 @@
-package com.github.netvl.picopickle
+package io.github.netvl.picopickle
 
 import shapeless._
 import shapeless.labelled._
 
-trait LowerPriorityShapelessWriters {
+trait LowerPriorityShapelessWriters2 {
+  implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Writer[R]): Writer[T] =
+    new Writer[T] {
+      override def write0(implicit b: Backend): (T, Option[b.BValue]) => Option[b.BValue] =
+        (f, v) => rw.write0(b)(g.to(f), v)
+    }
+}
+
+trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
   implicit def fieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Writer[V]): Writer[FieldType[K, V]] =
     new Writer[FieldType[K, V]] {
       override def write0(implicit b: Backend): (FieldType[K, V], Option[b.BValue]) => Option[b.BValue] =
@@ -42,15 +50,16 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
   implicit val hnilWriter: Writer[HNil] = new Writer[HNil] {
     override def write0(implicit b: Backend): (HNil, Option[b.BValue]) => Option[b.BValue] = (_, v) => v
   }
+}
 
-  implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Writer[R]): Writer[T] =
-    new Writer[T] {
-      override def write0(implicit b: Backend): (T, Option[b.BValue]) => Option[b.BValue] =
-        (f, v) => rw.write0(b)(g.to(f), v)
+trait LowerPriorityShapelessReaders2 {
+  implicit def genericReader[T, R](implicit g: LabelledGeneric.Aux[T, R], rr: Reader[R]): Reader[T] =
+    new Reader[T] {
+      override def read(implicit b: Backend): (b.BValue) => T = bv => g.from(rr.read(b)(bv))
     }
 }
 
-trait LowerPriorityShapelessReaders {
+trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
   implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K], vr: Reader[V]): Reader[FieldType[K, V]] =
     new Reader[FieldType[K, V]] {
       override def read(implicit b: Backend): (b.BValue) => FieldType[K, V] = {
@@ -78,11 +87,6 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
   implicit val hnilReader: Reader[HNil] =
     new Reader[HNil] {
       override def read(implicit b: Backend): (b.BValue) => HNil = _ => HNil
-    }
-
-  implicit def genericReader[T, R](implicit g: LabelledGeneric.Aux[T, R], rr: Reader[R]): Reader[T] =
-    new Reader[T] {
-      override def read(implicit b: Backend): (b.BValue) => T = bv => g.from(rr.read(b)(bv))
     }
 }
 

@@ -1,4 +1,4 @@
-package com.github.netvl.picopickle
+package io.github.netvl.picopickle
 
 trait Writer[T] {
   def write0(implicit b: Backend): (T, Option[b.BValue]) => Option[b.BValue]
