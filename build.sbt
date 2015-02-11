@@ -41,7 +41,7 @@ lazy val picopickle = (project in file("."))
           s"""
            |    implicit def tuple${i}Reader[$types](implicit $readers): Reader[Tuple$i[$types]] =
            |      Reader {
-           |        case backend.Extractors.Array(backend.From.Array(Vector($vars))) =>
+           |        case backend.Get.Array(backend.From.Array(Vector($vars))) =>
            |          Tuple$i($reads)
            |      }
          """.stripMargin

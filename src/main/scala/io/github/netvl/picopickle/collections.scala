@@ -19,7 +19,7 @@ trait CollectionWriters {
   private def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]](implicit wa: Writer[A],
                                                                                             wb: Writer[B]): Writer[M[A, B]] =
     if (wa == implicitly[Writer[String]]) Writer[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
-      case Some(backend.Extractors.Object(obj)) => m.foldLeft(obj) { (acc, t) =>
+      case Some(backend.Get.Object(obj)) => m.foldLeft(obj) { (acc, t) =>
         backend.setObjectKey(acc, t._1.asInstanceOf[String], wb.write(t._2))
       }
       case None => backend.makeObject(m.map { case (k, v) => (k.asInstanceOf[String], wb.write(v)) }.toMap)
@@ -79,20 +79,20 @@ trait CollectionReaders {
 
   private def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T], cbf: CanBuildFrom[C[T], T, C[T]]) =
     Reader {
-      case backend.Extractors.Array(arr) => backend.fromArray(arr).map(r.read).to[C]
+      case backend.Get.Array(arr) => backend.fromArray(arr).map(r.read).to[C]
     }
 
   private def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]](implicit ra: Reader[A], rb: Reader[B],
                                                            cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
     if (ra == implicitly[Reader[String]]) Reader {
-      case backend.Extractors.Object(backend.From.Object(m)) =>
+      case backend.Get.Object(backend.From.Object(m)) =>
         val builder = cbf.apply()
         m.foreach {
           case (k, v) => builder += (k.asInstanceOf[A] -> rb.read(v))
         }
         builder.result()
     } else Reader {
-      case backend.Extractors.Array(backend.From.Array(arr)) =>
+      case backend.Get.Array(backend.From.Array(arr)) =>
         val builder = cbf.apply()
         val rab = implicitly[Reader[(A, B)]]
         arr.foreach { e => builder += rab.read(e) }

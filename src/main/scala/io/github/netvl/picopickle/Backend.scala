@@ -65,7 +65,7 @@ trait Backend {
     }
   }
 
-  object Extractors {
+  object Get {
     object Object {
       def unapply(value: BValue): Option[BObject] = Backend.this.getObject(value)
     }

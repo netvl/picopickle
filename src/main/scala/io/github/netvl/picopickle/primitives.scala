@@ -21,11 +21,11 @@ trait PrimitiveReadersComponent {
   this: BackendComponent with TypesComponent =>
 
   implicit val intReader: Reader[Int] = Reader {
-    case backend.Extractors.Number(n) => backend.fromNumber(n).intValue()
+    case backend.Get.Number(n) => backend.fromNumber(n).intValue()
   }
 
   implicit val stringReader: Reader[String] = Reader {
-    case backend.Extractors.String(s) => backend.fromString(s)
+    case backend.Get.String(s) => backend.fromString(s)
   }
 }
 
