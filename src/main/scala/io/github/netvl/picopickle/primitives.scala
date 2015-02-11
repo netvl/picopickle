@@ -1,31 +1,34 @@
 package io.github.netvl.picopickle
 
-trait PrimitiveWriters {
-  implicit val intWriter: Writer[Int] = new Writer[Int] {
-    override def write0(implicit b: Backend): (Int, Option[b.BValue]) => Option[b.BValue] = (f, v) => (f, v) match {
-      case (n, None) => Some(b.makeNumber(n))
-    }
+trait PrimitiveWritersComponent {
+  this: BackendComponent with TypesComponent =>
+
+  implicit val intWriter: Writer[Int] = Writer.fromPF {
+    case (n, None) => backend.makeNumber(n)
   }
 
-  implicit val stringWriter: Writer[String] = new Writer[String] {
-    override def write0(implicit b: Backend): (String, Option[b.BValue]) => Option[b.BValue] = (f, v) => (f, v) match {
-      case (s, None) => Some(b.makeString(s))
-    }
-  }
-}
-
-trait PrimitiveReaders {
-  implicit val intReader: Reader[Int] = new Reader[Int] {
-    override def read(implicit b: Backend): (b.BValue) => Int = {
-      case b.Extractors.Number(n) => b.fromNumber(n).intValue()
-    }
+  implicit val stringWriter: Writer[String] = Writer.fromPF {
+    case (s, None) => backend.makeString(s)
   }
 
-  implicit val stringReader: Reader[String] = new Reader[String] {
-    override def read(implicit b: Backend): (b.BValue) => String = {
-      case b.Extractors.String(s) => b.fromString(s)
-    }
+  implicit def optionWriter[T](implicit w: Writer[T]): Writer[Option[T]] = Writer.fromPF {
+    case (Some(value), None) => backend.makeArray(Vector(w.write(value)))
+    case (None, None) => backend.makeArray(Vector.empty)
   }
 }
 
-trait PrimitiveReaderWriters extends PrimitiveReaders with PrimitiveWriters
+trait PrimitiveReadersComponent {
+  this: BackendComponent with TypesComponent =>
+
+  implicit val intReader: Reader[Int] = Reader {
+    case backend.Extractors.Number(n) => backend.fromNumber(n).intValue()
+  }
+
+  implicit val stringReader: Reader[String] = Reader {
+    case backend.Extractors.String(s) => backend.fromString(s)
+  }
+}
+
+trait PrimitiveReaderWritersComponent extends PrimitiveReadersComponent with PrimitiveWritersComponent {
+  this: BackendComponent with TypesComponent =>
+}

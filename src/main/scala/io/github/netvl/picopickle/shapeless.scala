@@ -4,90 +4,86 @@ import shapeless._
 import shapeless.labelled._
 
 trait LowerPriorityShapelessWriters2 {
-  implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Writer[R]): Writer[T] =
-    new Writer[T] {
-      override def write0(implicit b: Backend): (T, Option[b.BValue]) => Option[b.BValue] =
-        (f, v) => rw.write0(b)(g.to(f), v)
+  this: BackendComponent with TypesComponent =>
+  implicit def genericProductWriter[T <: Product, R](implicit g: LabelledGeneric.Aux[T, R], rw: Lazy[Writer[R]]): Writer[T] =
+    Writer.fromPF {
+      case (f, v) => rw.value.write0(g.to(f), v)
     }
 }
 
 trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
+  this: BackendComponent with TypesComponent =>
+
   implicit def fieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Writer[V]): Writer[FieldType[K, V]] =
-    new Writer[FieldType[K, V]] {
-      override def write0(implicit b: Backend): (FieldType[K, V], Option[b.BValue]) => Option[b.BValue] =
-        (f, v) => (f, v) match {
-          case (f, Some(b.Extractors.Object(v))) => Some(b.setObjectKey(v, kw.value.name, vw.write0(b)(f, None).get))
-          case (f, None) => Some(b.makeObject(Map(kw.value.name -> vw.write0(b)(f, None).get)))
-        }
-    }
+    Writer { f => {
+      case Some(backend.Extractors.Object(v)) => backend.setObjectKey(v, kw.value.name, vw.write(f))
+      case None => backend.makeObject(Map(kw.value.name -> vw.write(f)))
+    }}
 }
 
 trait ShapelessWriters extends LowerPriorityShapelessWriters {
+  this: BackendComponent with TypesComponent =>
+
   implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Writer[V]): Writer[FieldType[K, Option[V]]] =
-    new Writer[FieldType[K, Option[V]]] {
-      override def write0(implicit b: Backend): (FieldType[K, Option[V]], Option[b.BValue]) => Option[b.BValue] =
-        (f, v) => (f, v) match {
-          case (f, Some(b.Extractors.Object(v))) => (f: Option[V]) match {
-            case Some(value) => Some(b.setObjectKey(v, kw.value.name, vw.write0(b)(value, None).get))
-            case None => Some(v)
-          }
-          case (f, None) => (f: Option[V]) match {
-            case Some(value) => Some(b.makeObject(Map(kw.value.name -> vw.write0(b)(value, None).get)))
-            case None => None
-          }
-        }
+  Writer { f => {
+    case Some(backend.Extractors.Object(v)) => (f: Option[V]) match {
+      case Some(value) => backend.setObjectKey(v, kw.value.name, vw.write(value))
+      case None => v: backend.BValue
     }
+    case None => (f: Option[V]) match {
+      case Some(value) => backend.makeObject(Map(kw.value.name -> vw.write(value)))
+      case None => backend.makeEmptyObject
+    }
+  }}
 
   implicit def recordHeadWriter[H, T <: HList](implicit hw: Writer[H], tw: Writer[T],
                                                ev: H <:< FieldType[_, _]): Writer[H :: T] =
-  new Writer[H :: T] {
-    override def write0(implicit b: Backend): (H :: T, Option[b.BValue]) => Option[b.BValue] =
-      (f, v) => (f, v) match {
-        case (h :: t, bv) => tw.write0(b)(t, hw.write0(b)(h, bv))
-      }
+  Writer.fromPF {
+    case (h :: t, bv) => tw.write0(t, Some(hw.write0(h, bv)))
   }
 
-  implicit val hnilWriter: Writer[HNil] = new Writer[HNil] {
-    override def write0(implicit b: Backend): (HNil, Option[b.BValue]) => Option[b.BValue] = (_, v) => v
+  implicit val hnilWriter: Writer[HNil] =
+  new Writer[HNil] {
+    override def write0(value: HNil, acc: Option[backend.BValue]): backend.BValue = acc match {
+      case Some(bv) => bv
+      case None => backend.makeEmptyObject
+    }
   }
 }
 
 trait LowerPriorityShapelessReaders2 {
-  implicit def genericReader[T, R](implicit g: LabelledGeneric.Aux[T, R], rr: Reader[R]): Reader[T] =
-    new Reader[T] {
-      override def read(implicit b: Backend): (b.BValue) => T = bv => g.from(rr.read(b)(bv))
-    }
+  this: BackendComponent with TypesComponent =>
+
+  implicit def genericProductReader[T <: Product, R](implicit g: LabelledGeneric.Aux[T, R], rr: Lazy[Reader[R]]): Reader[T] =
+    Reader { case bv => g.from(rr.value.read(bv)) }
 }
 
 trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
+  this: BackendComponent with TypesComponent =>
+  
   implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K], vr: Reader[V]): Reader[FieldType[K, V]] =
-    new Reader[FieldType[K, V]] {
-      override def read(implicit b: Backend): (b.BValue) => FieldType[K, V] = {
-        case b.Extractors.Object(v) => field[K](vr.read(b)(b.getObjectKey(v, kw.value.name).get))
-      }
+    Reader {
+      case backend.Extractors.Object(v) => field[K](vr.read(backend.getObjectKey(v, kw.value.name).get))
     }
 }
 
 trait ShapelessReaders extends LowerPriorityShapelessReaders {
+  this: BackendComponent with TypesComponent =>
+  
   implicit def optionFieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K], vr: Reader[V]): Reader[FieldType[K, Option[V]]] =
-    new Reader[FieldType[K, Option[V]]] {
-      override def read(implicit b: Backend): (b.BValue) => FieldType[K, Option[V]] = {
-        case b.Extractors.Object(v) => field[K](b.getObjectKey(v, kw.value.name).map(vr.read(b)))
-      }
+    Reader {
+      case backend.Extractors.Object(v) => field[K](backend.getObjectKey(v, kw.value.name).map(vr.read))
     }
 
   implicit def recordHeadReader[H, T <: HList](implicit hr: Reader[H], tr: Reader[T],
                                                ev: H <:< FieldType[_, _]): Reader[H :: T] =
-    new Reader[H :: T] {
-      override def read(implicit b: Backend): (b.BValue) => H :: T = {
-        case bv@b.Extractors.Object(_) => hr.read(b)(bv) :: tr.read(b)(bv)
-      }
+    Reader {
+      case bv@backend.Extractors.Object(_) => hr.read(bv) :: tr.read(bv)
     }
 
-  implicit val hnilReader: Reader[HNil] =
-    new Reader[HNil] {
-      override def read(implicit b: Backend): (b.BValue) => HNil = _ => HNil
-    }
+  implicit val hnilReader: Reader[HNil] = Reader { case _ => HNil }
 }
 
-trait ShapelessReaderWriters extends ShapelessReaders with ShapelessWriters
+trait ShapelessReaderWritersComponent extends ShapelessReaders with ShapelessWriters {
+  this: BackendComponent with TypesComponent =>
+}
