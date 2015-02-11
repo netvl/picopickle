@@ -20,10 +20,10 @@ def commonDependencies(scalaVersion: String) = Seq(
   "org.scalatest" %% "scalatest" % "2.2.0" % "test"
 ) ++ shapelessDependency(scalaVersion)
 
-lazy val picopickle = (project in file("."))
+lazy val core = project
   .settings(commonSettings: _*)
   .settings(
-    name := "picopickle",
+    name := "picopickle-core",
 
     libraryDependencies ++= commonDependencies(scalaVersion.value),
 
@@ -86,12 +86,15 @@ lazy val picopickle = (project in file("."))
   )
 
 lazy val jawn = project
-  .dependsOn(picopickle)
+  .dependsOn(core)
   .settings(commonSettings: _*)
   .settings(
-    name := "jawn-backend",
+    name := "picopickle-backend-jawn",
 
     libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
       "org.spire-math" %% "jawn-parser" % "0.7.2"
     )
   )
+
+lazy val root = (project in file("."))
+  .aggregate(core, jawn)
