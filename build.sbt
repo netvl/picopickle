@@ -6,24 +6,26 @@ val commonSettings = Seq(
   scalaVersion := "2.10.4"
 )
 
-val commonDependencies = Seq(
+def shapelessDependency(scalaVersion: String) = scalaVersion match {
+  case v if v.startsWith("2.11") => Seq(
+    "com.chuusai" %% "shapeless" % "2.1.0"
+  )
+  case _ => Seq(
+    "com.chuusai" %% "shapeless" % "2.1.0" cross CrossVersion.full,
+    compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
+  )
+}
+
+def commonDependencies(scalaVersion: String) = Seq(
   "org.scalatest" %% "scalatest" % "2.2.0" % "test"
-)
+) ++ shapelessDependency(scalaVersion)
 
 lazy val picopickle = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle",
 
-    libraryDependencies ++= commonDependencies ++ (scalaVersion.value match {
-      case v if v.startsWith("2.11") => Seq(
-        "com.chuusai" %% "shapeless" % "2.1.0"
-      )
-      case _ => Seq(
-        "com.chuusai" %% "shapeless" % "2.1.0" cross CrossVersion.full,
-        compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
-      )
-    }),
+    libraryDependencies ++= commonDependencies(scalaVersion.value),
 
     sourceGenerators in Compile += task[Seq[File]] {
       val outFile = (sourceManaged in Compile).value / "io" / "github" / "netvl" / "picopickle" / "generated.scala"
@@ -84,11 +86,12 @@ lazy val picopickle = (project in file("."))
   )
 
 lazy val jawn = project
+  .dependsOn(picopickle)
   .settings(commonSettings: _*)
   .settings(
     name := "jawn-backend",
 
-    libraryDependencies ++= commonDependencies ++ Seq(
+    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
       "org.spire-math" %% "jawn-parser" % "0.7.2"
     )
   )

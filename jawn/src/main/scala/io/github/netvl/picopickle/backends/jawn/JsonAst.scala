@@ -1,4 +1,4 @@
-package io.github.netvl.picopickle.backends.json
+package io.github.netvl.picopickle.backends.jawn
 
 import shapeless.syntax.typeable._
 

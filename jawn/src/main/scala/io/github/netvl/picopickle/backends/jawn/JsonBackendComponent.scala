@@ -1,4 +1,4 @@
-package io.github.netvl.picopickle.backends.json
+package io.github.netvl.picopickle.backends.jawn
 
 import io.github.netvl.picopickle.BackendComponent
 

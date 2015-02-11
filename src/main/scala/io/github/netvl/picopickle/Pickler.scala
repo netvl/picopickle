@@ -1,7 +1,5 @@
 package io.github.netvl.picopickle
 
-import io.github.netvl.picopickle.backends.json.JsonBackendComponent
-
 trait Pickler {
   this: BackendComponent with TypesComponent =>
   def read[T: Reader](value: backend.BValue): T
@@ -23,5 +21,4 @@ trait DefaultPickler
     implicitly[Writer[T]].write(value)
 }
 
-trait JsonPickler extends DefaultPickler with TypesComponent with JsonBackendComponent
-object JsonPickler extends JsonPickler
+
