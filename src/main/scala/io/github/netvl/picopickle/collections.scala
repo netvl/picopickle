@@ -138,7 +138,7 @@ trait CollectionReaders {
   implicit def immHashMapReader[A: Reader, B: Reader]: Reader[imm.HashMap[A, B]] = mkMapReader[A, B, imm.HashMap]
   implicit def mutHashMapReader[A: Reader, B: Reader]: Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
 
-  implicit def immTreeMapReader[A: Reader, B: Reader]: Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
+  implicit def immTreeMapReader[A: Reader: Ordering, B: Reader]: Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
 }
 
 trait CollectionReaderWritersComponent extends CollectionReaders with CollectionWriters {
