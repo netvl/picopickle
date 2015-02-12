@@ -1,9 +1,30 @@
 crossScalaVersions := Seq("2.10.4", "2.11.5")
 
-val commonSettings = Seq(
+val commonSettings = bintrayPublishSettings ++ Seq(
   organization := "io.github.netvl.picopickle",
   version := "0.0.1",
-  scalaVersion := "2.10.4"
+  scalaVersion := "2.10.4",
+
+  name in bintray.Keys.bintray := "picopickle",
+
+  licenses := Seq("MIT" -> url("https://raw.githubusercontent.com/netvl/picopickle/master/LICENSE")),
+  homepage := Some(url("https://github.com/netvl/picopickle")),
+
+  publishMavenStyle := true,
+
+  pomExtra :=
+    <developers>
+      <developer>
+        <name>Vladimir Matveev</name>
+        <email>vladimir.matweev@gmail.com</email>
+        <url>https://github.com/netvl</url>
+      </developer>
+    </developers>
+    <scm>
+      <connection>scm:git:https://github.com/netvl/picopickle</connection>
+      <developerConnection>scm:git:git@github.com:netvl/picopickle.git</developerConnection>
+      <url>https://github.com/netvl/picopickle</url>
+    </scm>
 )
 
 def shapelessDependency(scalaVersion: String) = scalaVersion match {
@@ -98,3 +119,8 @@ lazy val jawn = project
 
 lazy val root = (project in file("."))
   .aggregate(core, jawn)
+  .settings(
+    publish := {},
+    publishLocal := {},
+    packagedArtifacts := Map.empty
+  )
