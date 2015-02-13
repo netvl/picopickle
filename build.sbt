@@ -2,7 +2,7 @@ crossScalaVersions := Seq("2.10.4", "2.11.5")
 
 val commonSettings = bintrayPublishSettings ++ Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.0.1",
+  version := "0.0.2",
   scalaVersion := "2.10.4",
 
   name in bintray.Keys.bintray := "picopickle",
@@ -64,7 +64,7 @@ lazy val core = project
           s"""
            |    implicit def tuple${i}Reader[$types](implicit $readers): Reader[Tuple$i[$types]] =
            |      Reader {
-           |        case backend.Get.Array(backend.From.Array(Vector($vars))) =>
+           |        case backend.Extract.Array(Vector($vars)) =>
            |          Tuple$i($reads)
            |      }
          """.stripMargin
@@ -72,8 +72,8 @@ lazy val core = project
         val tupleWriter =
           s"""
            |    implicit def tuple${i}Writer[$types](implicit $writers): Writer[Tuple$i[$types]] =
-           |      Writer.fromPF {
-           |        case (Tuple$i($vars), None) => backend.makeArray(Vector($writes))
+           |      Writer {
+           |        case Tuple$i($vars) => backend.makeArray(Vector($writes))
            |      }
            """.stripMargin
 

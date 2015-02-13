@@ -1,5 +1,6 @@
 package io.github.netvl.picopickle
 
+import scala.reflect.ClassTag
 import scala.{collection => coll}
 import scala.collection.{mutable => mut}
 import scala.collection.{immutable => imm}
@@ -9,22 +10,22 @@ import scala.language.higherKinds
 trait CollectionWriters {
   this: BackendComponent with TypesComponent with Tuple2Writer with PrimitiveWritersComponent =>
 
-  private def mkIterableWriter[T, C[_] <: Iterable[_]](implicit w: Writer[T]): Writer[C[T]] =
-    Writer { c => {
+  protected final def mkIterableWriter[T, C[_] <: Iterable[_]](implicit w: Writer[T]): Writer[C[T]] =
+    Writer.fromPF0 { c => {
       case None => backend.makeArray(
         c.iterator.asInstanceOf[Iterator[T]].map(e => w.write(e)).toVector
       )
     }}
 
-  private def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]](implicit wa: Writer[A],
+  protected final def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]](implicit wa: Writer[A],
                                                                                             wb: Writer[B]): Writer[M[A, B]] =
-    if (wa == implicitly[Writer[String]]) Writer[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
+    if (wa == implicitly[Writer[String]]) Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case Some(backend.Get.Object(obj)) => m.foldLeft(obj) { (acc, t) =>
         backend.setObjectKey(acc, t._1.asInstanceOf[String], wb.write(t._2))
       }
       case None => backend.makeObject(m.map { case (k, v) => (k.asInstanceOf[String], wb.write(v)) }.toMap)
     }}
-    else Writer[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
+    else Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case None =>
         val wab = implicitly[Writer[(A, B)]]
         backend.makeArray(m.map(t => wab.write(t)).toVector)
@@ -72,27 +73,31 @@ trait CollectionWriters {
   implicit def mutHashMapWriter[A: Writer, B: Writer]: Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
 
   implicit def immTreeMapWriter[A: Writer: Ordering, B: Writer]: Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
+
+  implicit def arrayWriter[T: Writer]: Writer[Array[T]] = Writer {
+    case arr => iterableWriter[T].write(arr)
+  }
 }
 
 trait CollectionReaders {
   this: BackendComponent with TypesComponent with Tuple2Reader with PrimitiveReadersComponent =>
 
-  private def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T], cbf: CanBuildFrom[C[T], T, C[T]]) =
+  protected final def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T], cbf: CanBuildFrom[C[T], T, C[T]]) =
     Reader {
-      case backend.Get.Array(arr) => backend.fromArray(arr).map(r.read).to[C]
+      case backend.Extract.Array(arr) => arr.map(r.read).to[C]
     }
 
-  private def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]](implicit ra: Reader[A], rb: Reader[B],
-                                                           cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
+  protected final def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]](implicit ra: Reader[A], rb: Reader[B],
+                                                                   cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
     if (ra == implicitly[Reader[String]]) Reader {
-      case backend.Get.Object(backend.From.Object(m)) =>
+      case backend.Extract.Object(m) =>
         val builder = cbf.apply()
         m.foreach {
           case (k, v) => builder += (k.asInstanceOf[A] -> rb.read(v))
         }
         builder.result()
     } else Reader {
-      case backend.Get.Array(backend.From.Array(arr)) =>
+      case backend.Extract.Array(arr) =>
         val builder = cbf.apply()
         val rab = implicitly[Reader[(A, B)]]
         arr.foreach { e => builder += rab.read(e) }
@@ -139,6 +144,10 @@ trait CollectionReaders {
   implicit def mutHashMapReader[A: Reader, B: Reader]: Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
 
   implicit def immTreeMapReader[A: Reader: Ordering, B: Reader]: Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
+
+  implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader {
+    case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
+  }
 }
 
 trait CollectionReaderWritersComponent extends CollectionReaders with CollectionWriters {

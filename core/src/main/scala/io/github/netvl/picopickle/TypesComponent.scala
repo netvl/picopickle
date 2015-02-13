@@ -9,16 +9,22 @@ trait TypesComponent {
   }
 
   object Writer {
-    def apply[T](ff: T => PartialFunction[Option[backend.BValue], backend.BValue]) =
+    def fromPF0[T](ff: T => PartialFunction[Option[backend.BValue], backend.BValue]) =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           ff(value)(acc)
       }
 
-    def fromPF[T](ff: PartialFunction[(T, Option[backend.BValue]), backend.BValue]) =
+    def fromPF1[T](ff: PartialFunction[(T, Option[backend.BValue]), backend.BValue]) =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           ff(value -> acc)
+      }
+    
+    def apply[T](ff: PartialFunction[T, backend.BValue]) =
+      new Writer[T] {
+        override def write0(value: T, acc: Option[backend.BValue]): backend.BValue = 
+          ff(value)
       }
   }
 

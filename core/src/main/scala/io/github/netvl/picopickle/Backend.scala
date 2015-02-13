@@ -43,6 +43,28 @@ trait Backend {
   def makeNull: BNull
   def getNull(value: BValue): Option[BNull]
 
+  object Extract {
+    object Object {
+      def unapply(value: BValue): Option[Map[String, BValue]] = getObject(value).map(fromObject)
+    }
+
+    object Array {
+      def unapply(value: BValue): Option[Vector[BValue]] = getArray(value).map(fromArray)
+    }
+
+    object String {
+      def unapply(value: BValue): Option[String] = getString(value).map(fromString)
+    }
+
+    object Number {
+      def unapply(value: BValue): Option[Number] = getNumber(value).map(fromNumber)
+    }
+
+    object Boolean {
+      def unapply(value: BValue): Option[Boolean] = getBoolean(value).map(fromBoolean)
+    }
+  }
+
   object From {
     object Object {
       def unapply(value: BObject): Option[Map[String, BValue]] = Some(Backend.this.fromObject(value))
