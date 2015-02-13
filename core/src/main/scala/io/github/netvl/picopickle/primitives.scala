@@ -40,6 +40,23 @@ trait PrimitiveWritersComponent {
     case Some(value) => backend.makeArray(Vector(w.write(value)))
     case None => backend.makeArray(Vector.empty)
   }
+  implicit def someWriter[T: Writer]: Writer[Some[T]] = Writer {
+    case s => optionWriter[T].write(s)
+  }
+  implicit val noneWriter: Writer[None.type] = Writer {
+    case None => optionWriter[Int].write(None)
+  }
+
+  implicit def eitherWriter[A, B](implicit wa: Writer[A], wb: Writer[B]): Writer[Either[A, B]] = Writer {
+    case Left(l) => backend.makeArray(Vector(backend.makeNumber(0), wa.write(l)))
+    case Right(r) => backend.makeArray(Vector(backend.makeNumber(1), wb.write(r)))
+  }
+  implicit def leftWriter[A: Writer, B: Writer]: Writer[Left[A, B]] = Writer {
+    case l => eitherWriter[A, B].write(l)
+  }
+  implicit def rightWriter[A: Writer, B: Writer]: Writer[Right[A, B]] = Writer {
+    case r => eitherWriter[A, B].write(r)
+  }
 
   implicit val symbolWriter: Writer[Symbol] = Writer {
     case s => backend.makeString(s.name)
@@ -78,8 +95,26 @@ trait PrimitiveReadersComponent {
   }
 
   implicit def optionReader[T](implicit r: Reader[T]): Reader[Option[T]] = Reader {
-    case backend.Extract.Array(Vector(v)) => Some(r.read(v))
-    case backend.Extract.Array(Vector()) => None
+    case backend.Extract.Array(arr) => arr.headOption.map(r.read)
+  }
+  implicit def someReader[T: Reader]: Reader[Some[T]] = Reader {
+    case bv => optionReader[T].read(bv).asInstanceOf[Some[T]]
+  }
+  implicit val noneReader: Reader[None.type] = Reader {
+    case bv => optionReader[Int].read(bv).asInstanceOf[None.type]
+  }
+
+  implicit def eitherReader[A, B](implicit ra: Reader[A], rb: Reader[B]): Reader[Either[A, B]] = Reader {
+    case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 0 =>
+      Left(ra.read(bv))
+    case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 1 =>
+      Right(rb.read(bv))
+  }
+  implicit def leftReader[A: Reader, B: Reader]: Reader[Left[A, B]] = Reader {
+    case bv => eitherReader[A, B].read(bv).asInstanceOf[Left[A, B]]
+  }
+  implicit def rightReader[A: Reader, B: Reader]: Reader[Right[A, B]] = Reader {
+    case bv => eitherReader[A, B].read(bv).asInstanceOf[Right[A, B]]
   }
 
   implicit val symbolReader: Reader[Symbol] = Reader {
