@@ -4,6 +4,7 @@ import jawn.{FContext, Facade}
 import shapeless.syntax.typeable._
 
 import io.github.netvl.picopickle.Backend
+import io.github.netvl.picopickle.utils.DoubleOrStringNumberRepr
 
 import scala.annotation.switch
 import scala.collection.mutable
@@ -22,7 +23,7 @@ object JsonAst {
 
   case object JsonNull extends JsonValue
 
-  object Backend extends Backend {
+  object Backend extends Backend with DoubleOrStringNumberRepr {
     override type BValue = JsonValue
     override type BObject = JsonObject
     override type BArray = JsonArray
@@ -53,6 +54,9 @@ object JsonAst {
     override def fromNumber(num: BNumber): Number = num.value
     override def makeNumber(n: Number): BNumber = JsonNumber(n.doubleValue())
     override def getNumber(value: BValue): Option[BNumber] = value.cast[JsonNumber]
+
+    override def makeNumberAccurately(n: Number): BValue = doubleOrStringToBackend(n)
+    override def fromNumberAccurately(value: BValue): Number = doubleOrStringFromBackend(value)
 
     override def fromBoolean(bool: BBoolean): Boolean = bool match {
       case JsonTrue => true

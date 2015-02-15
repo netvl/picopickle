@@ -73,6 +73,7 @@ trait CollectionWriters {
   implicit def mutHashMapWriter[A: Writer, B: Writer]: Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
 
   implicit def immTreeMapWriter[A: Writer: Ordering, B: Writer]: Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
+  implicit def immListMapWriter[A: Writer, B: Writer]: Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
 
   implicit def arrayWriter[T: Writer]: Writer[Array[T]] = Writer {
     case arr => iterableWriter[T].write(arr)

@@ -3,18 +3,8 @@ package io.github.netvl.picopickle
 trait PrimitiveWritersComponent {
   this: BackendComponent with TypesComponent =>
 
-  protected final val MaxLongInDouble: Long = 1L << 53  // Double has 53 bits of precision
-  
-  protected final def numWriter[T]: Writer[T] = Writer {
-    case x @ Double.PositiveInfinity => backend.makeString(x.toString)
-    case x @ Double.NegativeInfinity => backend.makeString(x.toString)
-    case x: Double if x.isNaN => backend.makeString(x.toString)
-    case x @ Float.PositiveInfinity => backend.makeString(x.toString)
-    case x @ Float.NegativeInfinity => backend.makeString(x.toString)
-    case x: Float if x.isNaN => backend.makeString(x.toString)
-    // those longs which do not fit into double
-    case x: Long if x.abs > MaxLongInDouble => backend.makeString(x.toString)
-    case x: Number => backend.makeNumber(x)
+  protected final def numWriter[T](implicit asNumber: T => Number): Writer[T] = Writer {
+    case x => backend.makeNumberAccurately(asNumber(x))
   }
 
   implicit val byteWriter: Writer[Byte] = numWriter[Byte]
@@ -61,18 +51,17 @@ trait PrimitiveWritersComponent {
   implicit val symbolWriter: Writer[Symbol] = Writer {
     case s => backend.makeString(s.name)
   }
+
+  implicit val nullWriter: Writer[Null] = Writer {
+    case null => backend.makeNull
+  }
 }
 
 trait PrimitiveReadersComponent {
   this: BackendComponent with TypesComponent =>
 
   protected final def numReader[T](f: Number => T): Reader[T] = Reader {
-    case backend.Extract.Number(n) => f(n)
-    case backend.Extract.String(s)
-      if s == Double.PositiveInfinity.toString ||
-        s == Double.NegativeInfinity.toString ||
-        s == Double.NaN.toString => f(s.toDouble)
-    case backend.Extract.String(s) => f(s.toLong)  // handles big longs
+    case bv => f(backend.fromNumberAccurately(bv))
   }
 
   implicit val byteReader: Reader[Byte] = numReader(_.byteValue())
@@ -119,6 +108,10 @@ trait PrimitiveReadersComponent {
 
   implicit val symbolReader: Reader[Symbol] = Reader {
     case backend.Extract.String(s) => Symbol(s)
+  }
+
+  implicit val nullReader: Reader[Null] = Reader {
+    case backend.Get.Null(_) => null
   }
 }
 

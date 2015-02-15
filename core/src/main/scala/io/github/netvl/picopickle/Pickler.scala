@@ -11,8 +11,9 @@ trait DefaultPickler
   with ShapelessReaderWritersComponent
   with PrimitiveReaderWritersComponent
   with CollectionReaderWritersComponent
-  with TupleReaderWritersComponent {
-  this: BackendComponent with TypesComponent =>
+  with TupleReaderWritersComponent
+  with TypesComponent {
+  this: BackendComponent =>
 
   override def read[T: Reader](value: backend.BValue): T =
     implicitly[Reader[T]].read(value)

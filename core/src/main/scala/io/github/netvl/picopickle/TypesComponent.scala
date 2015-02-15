@@ -1,8 +1,11 @@
 package io.github.netvl.picopickle
 
+import scala.annotation.implicitNotFound
+
 trait TypesComponent {
   this: BackendComponent =>
-  
+
+  @implicitNotFound("Don't know how to write ${T}; make sure that an implicit `Writer[${T}]` is in scope")
   trait Writer[T] {
     def write0(value: T, acc: Option[backend.BValue]): backend.BValue
     final def write(value: T): backend.BValue = write0(value, None)
@@ -28,6 +31,7 @@ trait TypesComponent {
       }
   }
 
+  @implicitNotFound("Don't know how to read ${T}; make sure that an implicit `Reader[${T}]` is in scope")
   trait Reader[T] {
     def read(value: backend.BValue): T
   }

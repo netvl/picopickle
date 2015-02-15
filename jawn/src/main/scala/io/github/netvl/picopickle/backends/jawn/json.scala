@@ -22,5 +22,5 @@ trait JsonStringSerializationComponent extends JsonBackendComponent {
   def readString[T: Reader](str: String): T = read[T](readAst(str))
 }
 
-trait JsonPickler extends DefaultPickler with TypesComponent with JsonBackendComponent with JsonStringSerializationComponent
+trait JsonPickler extends DefaultPickler with JsonBackendComponent with JsonStringSerializationComponent
 object JsonPickler extends JsonPickler

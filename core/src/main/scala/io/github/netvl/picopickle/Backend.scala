@@ -1,7 +1,5 @@
 package io.github.netvl.picopickle
 
-import shapeless.syntax.typeable._
-
 trait BackendComponent {
   val backend: Backend
 }
@@ -35,6 +33,9 @@ trait Backend {
   def fromNumber(num: BNumber): Number
   def makeNumber(n: Number): BNumber
   def getNumber(value: BValue): Option[BNumber]
+
+  def makeNumberAccurately(n: Number): BValue
+  def fromNumberAccurately(value: BValue): Number
 
   def fromBoolean(bool: BBoolean): Boolean
   def makeBoolean(b: Boolean): BBoolean
