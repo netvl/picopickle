@@ -3,6 +3,10 @@ package io.github.netvl.picopickle
 trait PrimitiveWritersComponent {
   this: BackendComponent with TypesComponent =>
 
+  implicit val unitWriter: Writer[Unit] = Writer {
+    case _ => backend.makeEmptyObject
+  }
+
   protected final def numWriter[T](implicit asNumber: T => Number): Writer[T] = Writer {
     case x => backend.makeNumberAccurately(asNumber(x))
   }
@@ -59,6 +63,10 @@ trait PrimitiveWritersComponent {
 
 trait PrimitiveReadersComponent {
   this: BackendComponent with TypesComponent =>
+
+  implicit val unitReader: Reader[Unit] = Reader {
+    case backend.Extract.Object(m) if m.isEmpty => ()
+  }
 
   protected final def numReader[T](f: Number => T): Reader[T] = Reader {
     case bv => f(backend.fromNumberAccurately(bv))

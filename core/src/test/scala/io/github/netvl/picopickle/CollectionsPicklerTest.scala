@@ -9,10 +9,15 @@ object CollectionsPicklerTest {
     case class A(x: Int, y: String)
   }
 
+  object CaseObject {
+    case object A
+  }
+
   object SealedTrait {
     sealed trait Root
     case class A(x: Int, y: String) extends Root
     case class B(a: Long, b: Vector[Double]) extends Root
+    case object C extends Root
   }
 }
 
@@ -41,6 +46,10 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
         write(null) shouldBe (null: Any)
       }
 
+      "unit to an empty map" in {
+        write(()) shouldEqual Map()
+      }
+
       "boolean to boolean" in {
         write(true) shouldEqual true
         write(false) shouldEqual false
@@ -48,7 +57,14 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
 
       "collection to a vector" in {
         write(Seq("a", "b")) shouldEqual Vector("a", "b")
+      }
+
+      "map to a vector of vectors" in {
         write(ListMap(1 -> 2, 3 -> 4)) shouldEqual Vector(Vector(1, 2), Vector(3, 4))
+      }
+
+      "map with string keys to an object" in {
+        write(Map("a" -> 1, "b" -> 2)) shouldEqual Map("a" -> 1, "b" -> 2)
       }
 
       "case class to a map" in {
@@ -58,6 +74,12 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
           "x" -> 10,
           "y" -> "hi"
         )
+      }
+
+      "case object to an empty map" in {
+        import CaseObject._
+
+        write(A) shouldEqual Map()
       }
 
       "sealed trait hierarchy to a map with a discriminator" in {
@@ -73,6 +95,7 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
           "a" -> 42L,
           "b" -> Vector(1.0, 2.0, 3.0)
         )
+        write[Root](C) shouldEqual Map("$variant" -> "C")
       }
     }
   }

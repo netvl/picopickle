@@ -145,6 +145,7 @@ trait CollectionReaders {
   implicit def mutHashMapReader[A: Reader, B: Reader]: Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
 
   implicit def immTreeMapReader[A: Reader: Ordering, B: Reader]: Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
+  implicit def immListMapReader[A: Reader, B: Reader]: Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
 
   implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader {
     case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
