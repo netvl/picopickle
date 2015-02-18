@@ -1,5 +1,8 @@
-picopickle 0.0.3
+picopickle 0.0.2
 ================
+
+(This readme is currently in flux and may reflect features unavailable in the latest released version.
+This situation is only temporary)
 
 picopickle is a serialization library for Scala. Its main features are:
 
@@ -20,7 +23,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.0.3"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.0.2"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -44,7 +47,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.0.3"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.0.2"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -212,18 +215,18 @@ object CustomPickler extends JsonPickler {
 
 (of course, you can extract it into a separate trait and mix it into different picklers)
 
-### Collections backend
+### Collections pickler
 
 **TODO**
 
-### Jawn backend
+### JSON pickler
 
 **TODO**
 
 Backends
 --------
 
-** TODO **
+**TODO**
 
 Plans
 -----
