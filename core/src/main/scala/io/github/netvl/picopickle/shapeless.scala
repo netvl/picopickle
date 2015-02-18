@@ -15,7 +15,7 @@ trait LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
   implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Lazy[Writer[R]]): Writer[T] =
     Writer.fromPF1 {
-      case (f, v) => rw.value.write0(g.to(f), v)
+      case (f, bv) => rw.value.write0(g.to(f), bv)
     }
 }
 
