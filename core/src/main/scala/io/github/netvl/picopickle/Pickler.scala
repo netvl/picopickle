@@ -16,11 +16,8 @@ trait DefaultPickler
   with TypesComponent {
   this: BackendComponent =>
 
-  override def read[T: Reader](value: backend.BValue): T =
-    implicitly[Reader[T]].read(value)
-
-  override def write[T: Writer](value: T): backend.BValue =
-    implicitly[Writer[T]].write(value)
+  override def read[T](value: backend.BValue)(implicit r: Reader[T]): T = r.read(value)
+  override def write[T](value: T)(implicit w: Writer[T]): backend.BValue = w.write(value)
 }
 
 
