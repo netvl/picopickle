@@ -8,8 +8,8 @@ trait JsonBackendComponent extends BackendComponent {
   override val backend = JsonAst.Backend
 }
 
-trait JsonStringSerializationComponent extends JsonBackendComponent {
-  this: Pickler with TypesComponent =>
+trait JsonStringSerializationComponent {
+  this: Pickler with TypesComponent with JsonBackendComponent =>
 
   def writeAst(ast: JsonAst.JsonValue): String = JsonRenderer.render(ast)
   def readAst(str: String): JsonAst.JsonValue = jawn.Parser.parseFromString(str)(JawnFacade) match {
