@@ -3,6 +3,14 @@ package io.github.netvl.picopickle
 import shapeless._
 import shapeless.labelled._
 
+trait SealedTraitDiscriminator {
+  def discriminatorKey: String
+}
+
+trait DefaultSealedTraitDiscriminator extends SealedTraitDiscriminator {
+  override val discriminatorKey: String = "$variant"
+}
+
 trait LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
   implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Lazy[Writer[R]]): Writer[T] =
@@ -22,7 +30,7 @@ trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
 }
 
 trait ShapelessWriters extends LowerPriorityShapelessWriters {
-  this: BackendComponent with TypesComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
 
   implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Writer[V]): Writer[FieldType[K, Option[V]]] =
     Writer.fromPF0 { f => {
@@ -63,7 +71,7 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
                                                                kw: Witness.Aux[K]): Writer[FieldType[K, V] :+: T] =
     Writer.fromPF1 {
       case (Inl(h), ObjectOrEmpty(obj)) =>
-        vw.write0(h, Some(backend.setObjectKey(obj, "$variant", backend.makeString(kw.value.name))))
+        vw.write0(h, Some(backend.setObjectKey(obj, discriminatorKey, backend.makeString(kw.value.name))))
 
       case (Inr(t), ObjectOrEmpty(obj)) =>
         tw.write0(t, Some(obj))
@@ -96,7 +104,7 @@ trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
 }
 
 trait ShapelessReaders extends LowerPriorityShapelessReaders {
-  this: BackendComponent with TypesComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
   
   implicit def optionFieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K], vr: Reader[V]): Reader[FieldType[K, Option[V]]] =
     Reader {
@@ -114,7 +122,7 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
   protected object ObjectWithDiscriminator {
     def unapply(value: backend.BValue): Option[String] =
       backend.Extract.Object.unapply(value)
-        .flatMap(_.get("$variant"))
+        .flatMap(_.get(discriminatorKey))
         .flatMap(backend.Extract.String.unapply)
   }
 
@@ -136,5 +144,5 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
 }
 
 trait ShapelessReaderWritersComponent extends ShapelessReaders with ShapelessWriters {
-  this: BackendComponent with TypesComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
 }

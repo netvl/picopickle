@@ -1,6 +1,6 @@
 package io.github.netvl.picopickle
 
-trait PrimitiveWritersComponent {
+trait PrimitiveWriters {
   this: BackendComponent with TypesComponent =>
 
   implicit val unitWriter: Writer[Unit] = Writer {
@@ -61,7 +61,7 @@ trait PrimitiveWritersComponent {
   }
 }
 
-trait PrimitiveReadersComponent {
+trait PrimitiveReaders {
   this: BackendComponent with TypesComponent =>
 
   implicit val unitReader: Reader[Unit] = Reader {
@@ -123,6 +123,6 @@ trait PrimitiveReadersComponent {
   }
 }
 
-trait PrimitiveReaderWritersComponent extends PrimitiveReadersComponent with PrimitiveWritersComponent {
+trait PrimitiveReaderWritersComponent extends PrimitiveReaders with PrimitiveWriters {
   this: BackendComponent with TypesComponent =>
 }

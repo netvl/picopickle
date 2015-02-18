@@ -2,7 +2,7 @@ crossScalaVersions := Seq("2.10.4", "2.11.5")
 
 val commonSettings = bintrayPublishSettings ++ Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.0.2",
+  version := "0.0.3",
   scalaVersion := "2.10.4",
 
   name in bintray.Keys.bintray := "picopickle",
@@ -85,12 +85,12 @@ lazy val core = project
         s"""
          |package io.github.netvl.picopickle
          |
-         |trait TupleReaders extends Tuple2Reader {
+         |trait TupleReaders {
          |  this: BackendComponent with TypesComponent =>
          |${tupleReaders.mkString("")}
          |}
          |
-         |trait TupleWriters extends Tuple2Writer {
+         |trait TupleWriters {
          |  this: BackendComponent with TypesComponent =>
          |${tupleWriters.mkString("")}
          |}

@@ -8,7 +8,7 @@ import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 
 trait CollectionWriters {
-  this: BackendComponent with TypesComponent with Tuple2Writer with PrimitiveWritersComponent =>
+  this: BackendComponent with TypesComponent =>
 
   protected final def mkIterableWriter[T, C[_] <: Iterable[_]](implicit w: Writer[T]): Writer[C[T]] =
     Writer.fromPF0 { c => {
@@ -17,9 +17,9 @@ trait CollectionWriters {
       )
     }}
 
-  protected final def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]](implicit wa: Writer[A],
-                                                                                            wb: Writer[B]): Writer[M[A, B]] =
-    if (wa == implicitly[Writer[String]]) Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
+  protected final def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]]
+      (implicit wa: Writer[A], wb: Writer[B], ws: Writer[String], wab: Writer[(A, B)]): Writer[M[A, B]] =
+    if (wa == ws) Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case Some(backend.Get.Object(obj)) => m.foldLeft(obj) { (acc, t) =>
         backend.setObjectKey(acc, t._1.asInstanceOf[String], wb.write(t._2))
       }
@@ -27,7 +27,6 @@ trait CollectionWriters {
     }}
     else Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case None =>
-        val wab = implicitly[Writer[(A, B)]]
         backend.makeArray(m.map(t => wab.write(t)).toVector)
     }}
 
@@ -65,15 +64,15 @@ trait CollectionWriters {
   implicit def arrayBufferWriter[T: Writer]: Writer[mut.ArrayBuffer[T]] = mkIterableWriter[T, mut.ArrayBuffer]
   implicit def linkedListWriter[T: Writer]: Writer[mut.LinkedList[T]] = mkIterableWriter[T, mut.LinkedList]
 
-  implicit def mapWriter[A: Writer, B: Writer]: Writer[coll.Map[A, B]] = mkMapWriter[A, B, coll.Map]
-  implicit def immMapWriter[A: Writer, B: Writer]: Writer[imm.Map[A, B]] = mkMapWriter[A, B, imm.Map]
-  implicit def mutMapWriter[A: Writer, B: Writer]: Writer[mut.Map[A, B]] = mkMapWriter[A, B, mut.Map]
+  implicit def mapWriter[A: Writer, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[coll.Map[A, B]] = mkMapWriter[A, B, coll.Map]
+  implicit def immMapWriter[A: Writer, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[imm.Map[A, B]] = mkMapWriter[A, B, imm.Map]
+  implicit def mutMapWriter[A: Writer, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[mut.Map[A, B]] = mkMapWriter[A, B, mut.Map]
 
-  implicit def immHashMapWriter[A: Writer, B: Writer]: Writer[imm.HashMap[A, B]] = mkMapWriter[A, B, imm.HashMap]
-  implicit def mutHashMapWriter[A: Writer, B: Writer]: Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
+  implicit def immHashMapWriter[A: Writer, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[imm.HashMap[A, B]] = mkMapWriter[A, B, imm.HashMap]
+  implicit def mutHashMapWriter[A: Writer, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
 
-  implicit def immTreeMapWriter[A: Writer: Ordering, B: Writer]: Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
-  implicit def immListMapWriter[A: Writer, B: Writer]: Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
+  implicit def immTreeMapWriter[A: Writer: Ordering, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
+  implicit def immListMapWriter[A: Writer, B: Writer](implicit ws: Writer[String], wab: Writer[(A, B)]): Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
 
   implicit def arrayWriter[T: Writer]: Writer[Array[T]] = Writer {
     case arr => iterableWriter[T].write(arr)
@@ -81,16 +80,17 @@ trait CollectionWriters {
 }
 
 trait CollectionReaders {
-  this: BackendComponent with TypesComponent with Tuple2Reader with PrimitiveReadersComponent =>
+  this: BackendComponent with TypesComponent =>
 
   protected final def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T], cbf: CanBuildFrom[C[T], T, C[T]]) =
     Reader {
       case backend.Extract.Array(arr) => arr.map(r.read).to[C]
     }
 
-  protected final def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]](implicit ra: Reader[A], rb: Reader[B],
-                                                                   cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
-    if (ra == implicitly[Reader[String]]) Reader {
+  protected final def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]]
+      (implicit ra: Reader[A], rb: Reader[B], rs: Reader[String], rab: Reader[(A, B)],
+       cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
+    if (ra == rs) Reader {
       case backend.Extract.Object(m) =>
         val builder = cbf.apply()
         m.foreach {
@@ -100,7 +100,6 @@ trait CollectionReaders {
     } else Reader {
       case backend.Extract.Array(arr) =>
         val builder = cbf.apply()
-        val rab = implicitly[Reader[(A, B)]]
         arr.foreach { e => builder += rab.read(e) }
         builder.result()
     }
@@ -137,15 +136,15 @@ trait CollectionReaders {
   implicit def arrayBufferReader[T: Reader]: Reader[mut.ArrayBuffer[T]] = mkIterableReader[T, mut.ArrayBuffer]
   implicit def linkedListReader[T: Reader]: Reader[mut.LinkedList[T]] = mkIterableReader[T, mut.LinkedList]
 
-  implicit def mapReader[A: Reader, B: Reader]: Reader[coll.Map[A, B]] = mkMapReader[A, B, coll.Map]
-  implicit def immMapReader[A: Reader, B: Reader]: Reader[imm.Map[A, B]] = mkMapReader[A, B, imm.Map]
-  implicit def mutMapReader[A: Reader, B: Reader]: Reader[mut.Map[A, B]] = mkMapReader[A, B, mut.Map]
+  implicit def mapReader[A: Reader, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[coll.Map[A, B]] = mkMapReader[A, B, coll.Map]
+  implicit def immMapReader[A: Reader, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[imm.Map[A, B]] = mkMapReader[A, B, imm.Map]
+  implicit def mutMapReader[A: Reader, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[mut.Map[A, B]] = mkMapReader[A, B, mut.Map]
 
-  implicit def immHashMapReader[A: Reader, B: Reader]: Reader[imm.HashMap[A, B]] = mkMapReader[A, B, imm.HashMap]
-  implicit def mutHashMapReader[A: Reader, B: Reader]: Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
+  implicit def immHashMapReader[A: Reader, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[imm.HashMap[A, B]] = mkMapReader[A, B, imm.HashMap]
+  implicit def mutHashMapReader[A: Reader, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
 
-  implicit def immTreeMapReader[A: Reader: Ordering, B: Reader]: Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
-  implicit def immListMapReader[A: Reader, B: Reader]: Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
+  implicit def immTreeMapReader[A: Reader: Ordering, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
+  implicit def immListMapReader[A: Reader, B: Reader](implicit rs: Reader[String], rab: Reader[(A, B)]): Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
 
   implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader {
     case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
@@ -153,6 +152,5 @@ trait CollectionReaders {
 }
 
 trait CollectionReaderWritersComponent extends CollectionReaders with CollectionWriters {
-  this: BackendComponent with TypesComponent with Tuple2Reader with Tuple2Writer
-    with PrimitiveReadersComponent with PrimitiveWritersComponent =>
+  this: BackendComponent with TypesComponent =>
 }
