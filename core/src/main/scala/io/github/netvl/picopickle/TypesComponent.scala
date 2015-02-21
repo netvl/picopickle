@@ -15,7 +15,7 @@ trait TypesComponent { this: BackendComponent =>
   final type PF[-A, +B] = PartialFunction[A, B]
 
   /**
-   * A type class trait for writing arbitrary values of the specified type to the backend representation.
+   * A type class trait for writing objects of the specified type to their backend representation.
    *
    * All serialization is done by implicit instances of this trait.
    *
@@ -55,7 +55,7 @@ trait TypesComponent { this: BackendComponent =>
   }
 
   /**
-   * Contains various constructors to create custom [[Writer Writers]].
+   * Contains various constructors for custom [[Writer Writers]].
    */
   object Writer {
     /**
@@ -91,8 +91,20 @@ trait TypesComponent { this: BackendComponent =>
     /**
      * Creates a new writer from a partial function of type `PF[T, backend.BValue]`.
      *
-     * The main constructor for custom writers. The writers returned by this function ignore
+     * This is the main constructor for custom writers. The writers returned by this function ignore
      * the accumulator argument (as most of writers should do).
+     *
+     * An example:
+     * {{{
+     *   case class A(x: Int, y: String)
+     *
+     *   implicit val aWriter: Writer[A] = Writer {
+     *     case A(x, y) => backend.makeObject(Map(
+     *       "a" -> backend.makeNumber(x),
+     *       "b" -> backend.makeString(y)
+     *     ))
+     *   }
+     * }}}
      *
      * @param ff a function defining writer behavior
      * @tparam T source type
@@ -120,9 +132,33 @@ trait TypesComponent { this: BackendComponent =>
    */
   @implicitNotFound("Don't know how to read ${T}; make sure that an implicit `Reader[${T}]` is in scope")
   trait Reader[T] { source =>
-    def canRead(value: backend.BValue): Boolean = true
+    /**
+     * Checks if this reader can handle the provided value.
+     *
+     * @param value a backend value
+     * @return `true` if this reader can read from the `value`, `false` otherwise
+     */
+    def canRead(value: backend.BValue): Boolean
+
+    /**
+     * Deserializes the value of the specified type from the provided backend value.
+     *
+     * This method should fail with an exception if [[Reader.canRead canRead]] returns `false`
+     * on this value and it returns a deserialized object successfully otherwise.
+     *
+     * @param value a backend value
+     * @return deserialized variant of a `value`
+     */
     def read(value: backend.BValue): T
 
+    /**
+     * Combines this reader with the specified fallback reader which is used if this reader can't
+     * handle the provided value based on [[Reader.canRead canRead]] result.
+     *
+     * @param other the fallback reader
+     * @return a reader which delegates to this reader if this reader can deserialize a value
+     *         or to the `other` reader otherwise
+     */
     final def orElse(other: Reader[T]): Reader[T] = new Reader[T] {
       override def canRead(value: backend.BValue) =
         source.canRead(value) || other.canRead(value)
@@ -130,15 +166,44 @@ trait TypesComponent { this: BackendComponent =>
         if (source.canRead(value)) source.read(value) else other.read(value)
     }
 
+    /**
+     * A shorthand for `this.orElse(Reader(other))`, where `other` is a partial function.
+     * See [[Reader.apply]].
+     *
+     * @param other a partial function which is used to create the fallback reader
+     * @return see another `orElse` method
+     */
     final def orElse(other: PF[backend.BValue, T]): Reader[T] = this orElse Reader(other)
 
+    /**
+     * Returns a reader which applies the given function to the result of the deserialization.
+     *
+     * @param f a transformation function
+     * @tparam U result type
+     * @return a reader which reads a value of type `T` and then applies `f` to obtain a value of type `U`
+     */
     final def andThen[U](f: T => U): Reader[U] = new Reader[U] {
       override def canRead(value: backend.BValue) = source.canRead(value)
       override def read(value: backend.BValue): U = f(source.read(value))
     }
   }
 
+  /**
+   * Contains various constructors for custom [[Reader Readers]].
+   */
   object Reader {
+    /**
+     * Creates a reader using the given partial function.
+     *
+     * This is the main constructor for custom readers. The provided partial function is used
+     * to reconstruct a value from its backend representation. [[Reader.canRead canRead]] method
+     * of the constructed reader delegates to [[scala.PartialFunction.isDefinedAt isDefinedAt]] on
+     * the partial function.
+     *
+     * @param f a partial function from backend representation to the target type
+     * @tparam T target type
+     * @return a reader delegating to the provided function.
+     */
     def apply[T](f: PF[backend.BValue, T]) =
       new Reader[T] {
         override def canRead(value: backend.BValue) =  f.isDefinedAt(value)
