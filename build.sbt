@@ -3,7 +3,7 @@ crossScalaVersions := Seq("2.10.4", "2.11.5")
 val commonSettings = bintrayPublishSettings ++ Seq(
   organization := "io.github.netvl.picopickle",
   version := "0.0.3",
-  scalaVersion := "2.10.4",
+  scalaVersion := "2.11.5",
 
   name in bintray.Keys.bintray := "picopickle",
 
@@ -31,10 +31,13 @@ def shapelessDependency(scalaVersion: String) = scalaVersion match {
   case v if v.startsWith("2.11") => Seq(
     "com.chuusai" %% "shapeless" % "2.1.0"
   )
-  case _ => Seq(
+  case v if v.startsWith("2.10") => Seq(
     "com.chuusai" %% "shapeless" % "2.1.0" cross CrossVersion.full,
     compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
   )
+  // other scala versions are unsupported
+  case v =>
+    sys.error(s"Scala version $v is not supported")
 }
 
 def commonDependencies(scalaVersion: String) = Seq(
@@ -62,19 +65,19 @@ lazy val core = project
 
         val tupleReader =
           s"""
-           |    implicit def tuple${i}Reader[$types](implicit $readers): Reader[Tuple$i[$types]] =
-           |      Reader {
-           |        case backend.Extract.Array(Vector($vars)) =>
-           |          Tuple$i($reads)
-           |      }
+           |  implicit def tuple${i}Reader[$types](implicit $readers): Reader[Tuple$i[$types]] =
+           |    Reader {
+           |      case backend.Extract.Array(Vector($vars)) =>
+           |        Tuple$i($reads)
+           |    }
          """.stripMargin
 
         val tupleWriter =
           s"""
-           |    implicit def tuple${i}Writer[$types](implicit $writers): Writer[Tuple$i[$types]] =
-           |      Writer {
-           |        case Tuple$i($vars) => backend.makeArray(Vector($writes))
-           |      }
+           |  implicit def tuple${i}Writer[$types](implicit $writers): Writer[Tuple$i[$types]] =
+           |    Writer {
+           |      case Tuple$i($vars) => backend.makeArray(Vector($writes))
+           |    }
            """.stripMargin
 
         (tupleReader, tupleWriter)
