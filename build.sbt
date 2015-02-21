@@ -1,10 +1,14 @@
 crossScalaVersions := Seq("2.10.4", "2.11.5")
 
-val commonSettings = bintrayPublishSettings ++ Seq(
+val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
   version := "0.0.3",
   scalaVersion := "2.11.5",
 
+  autoAPIMappings := true
+)
+
+val commonSettings = bintrayPublishSettings ++ commonCommonSettings ++ Seq(
   name in bintray.Keys.bintray := "picopickle",
 
   licenses := Seq("MIT" -> url("https://raw.githubusercontent.com/netvl/picopickle/master/LICENSE")),
@@ -122,7 +126,15 @@ lazy val jawn = project
 
 lazy val root = (project in file("."))
   .aggregate(core, jawn)
+  .settings(commonCommonSettings: _*)
+  .settings(unidocSettings: _*)
+  .settings(site.settings ++ ghpages.settings: _*)
   .settings(
+    name := "picopickle",
+
+    site.addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), "latest/api"),
+    git.remoteRepo := "git@github.com:netvl/picopickle.git",
+
     publish := {},
     publishLocal := {},
     packagedArtifacts := Map.empty
