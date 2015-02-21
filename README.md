@@ -59,6 +59,8 @@ You can create your own backends to support your own data formats; more informat
 to do it is available below. It is likely that more officially supported backends will be
 available later.
 
+  [Jawn]: https://github.com/non/jawn
+
 Serialization mechanism
 -----------------------
 
@@ -83,13 +85,19 @@ with the shapeless type is fairly natural: each case class/case object is repres
 by a `HList` of corresponding field types labelled with field names, and the whole hierarchy
 is represented by a `Coproduct` of the corresponding `HList`s.
 
-Currently picopickle does not support case classes with variable arguments (because they are
-not supported by shapeless `Generic`) and recursive types, that is, case classes which have
-themselves as arguments (even through another class), like the following:
+picopickle also supports recursive types, that is, when a case class eventually depends on
+itself or on the sealed trait it belongs to, for example:
+
 ```scala
-case class A(next: Option[B])
-case class B(next: Option[A])
+sealed trait Root
+case object A extends Root
+case class B(x: Int, b: Option[B]) extends Root  // depends on itself
+case class C(next: Root) extends Root  // depends on the sealed trait
 ```
+
+Currently picopickle does not support case classes with variable arguments, because they are
+not supported by shapeless `Generic`. This is going to change when the next shapeless version
+is released.
 
 Usage
 -----
@@ -117,6 +125,10 @@ case class A(x: Int, y: String)
 
 assert(write(A(10, "hi")) == Map("x" -> 10, "y" -> "hi"))
 ```
+
+Jawn pickler also provides additional functions, `readString()`/`writeString()` and
+`readAst()`/`writeAst()`, which [de]serialize objects to strings and JSON AST to strings,
+respectively:
 
 ```scala
 import io.github.netvl.picopickle.backends.jawn.JsonPickler._
@@ -233,7 +245,7 @@ Plans
 
 * Improve custom serializers ergonomics
 * Add proper exception handling
-* Consider adding support for more types (e.g. recursive classes)
+* Consider adding support for more types
 * Add more backends (e.g. BSON backend)
 * Add more tests
 * Add more documentation
@@ -246,6 +258,7 @@ Changelog
 * More serializer instances
 * Added generic handling for accurate numbers serialization
 * Added collections backend
+* Support for recursive types
 * Started adding tests
 
 ### 0.0.2
