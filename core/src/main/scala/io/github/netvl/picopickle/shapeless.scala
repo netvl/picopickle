@@ -13,6 +13,7 @@ trait DefaultSealedTraitDiscriminator extends SealedTraitDiscriminator {
 
 trait LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
+
   implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Lazy[Writer[R]]): Writer[T] =
     Writer.fromPF1 {
       case (f, bv) => rw.value.write0(g.to(f), bv)
@@ -22,32 +23,33 @@ trait LowerPriorityShapelessWriters2 {
 trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
 
-  implicit def fieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Writer[V]): Writer[FieldType[K, V]] =
+  implicit def fieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Lazy[Writer[V]]): Writer[FieldType[K, V]] =
     Writer.fromPF0 { f => {
-      case Some(backend.Get.Object(v)) => backend.setObjectKey(v, kw.value.name, vw.write(f))
-      case None => backend.makeObject(Map(kw.value.name -> vw.write(f)))
+      case Some(backend.Get.Object(v)) => backend.setObjectKey(v, kw.value.name, vw.value.write(f))
+      case None => backend.makeObject(Map(kw.value.name -> vw.value.write(f)))
     }}
 }
 
 trait ShapelessWriters extends LowerPriorityShapelessWriters {
   this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
 
-  implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Writer[V]): Writer[FieldType[K, Option[V]]] =
+  implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K],
+                                                     vw: Lazy[Writer[V]]): Writer[FieldType[K, Option[V]]] =
     Writer.fromPF0 { f => {
       case Some(backend.Get.Object(v)) => (f: Option[V]) match {
-        case Some(value) => backend.setObjectKey(v, kw.value.name, vw.write(value))
+        case Some(value) => backend.setObjectKey(v, kw.value.name, vw.value.write(value))
         case None => v: backend.BValue
       }
       case None => (f: Option[V]) match {
-        case Some(value) => backend.makeObject(Map(kw.value.name -> vw.write(value)))
+        case Some(value) => backend.makeObject(Map(kw.value.name -> vw.value.write(value)))
         case None => backend.makeEmptyObject
       }
     }}
 
-  implicit def recordHeadWriter[H, T <: HList](implicit hw: Writer[H], tw: Writer[T],
+  implicit def recordHeadWriter[H, T <: HList](implicit hw: Lazy[Writer[H]], tw: Lazy[Writer[T]],
                                                ev: H <:< FieldType[_, _]): Writer[H :: T] =
     Writer.fromPF1 {
-      case (h :: t, bv) => tw.write0(t, Some(hw.write0(h, bv)))
+      case (h :: t, bv) => tw.value.write0(t, Some(hw.value.write0(h, bv)))
     }
 
   implicit val hnilWriter: Writer[HNil] =
@@ -66,15 +68,15 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
     }
   }
   
-  implicit def coproductWriter[K <: Symbol, V, T <: Coproduct](implicit vw: Writer[V],
-                                                               tw: Writer[T],
+  implicit def coproductWriter[K <: Symbol, V, T <: Coproduct](implicit vw: Lazy[Writer[V]],
+                                                               tw: Lazy[Writer[T]],
                                                                kw: Witness.Aux[K]): Writer[FieldType[K, V] :+: T] =
     Writer.fromPF1 {
       case (Inl(h), ObjectOrEmpty(obj)) =>
-        vw.write0(h, Some(backend.setObjectKey(obj, discriminatorKey, backend.makeString(kw.value.name))))
+        vw.value.write0(h, Some(backend.setObjectKey(obj, discriminatorKey, backend.makeString(kw.value.name))))
 
       case (Inr(t), ObjectOrEmpty(obj)) =>
-        tw.write0(t, Some(obj))
+        tw.value.write0(t, Some(obj))
     }
 
   implicit val cnilWriter: Writer[CNil] =
@@ -97,24 +99,26 @@ trait LowerPriorityShapelessReaders2 {
 trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
   this: BackendComponent with TypesComponent =>
   
-  implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K], vr: Reader[V]): Reader[FieldType[K, V]] =
+  implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
+                                               vr: Lazy[Reader[V]]): Reader[FieldType[K, V]] =
     Reader {
-      case backend.Get.Object(v) => field[K](vr.read(backend.getObjectKey(v, kw.value.name).get))
+      case backend.Get.Object(v) => field[K](vr.value.read(backend.getObjectKey(v, kw.value.name).get))
     }
 }
 
 trait ShapelessReaders extends LowerPriorityShapelessReaders {
   this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
   
-  implicit def optionFieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K], vr: Reader[V]): Reader[FieldType[K, Option[V]]] =
+  implicit def optionFieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
+                                                     vr: Lazy[Reader[V]]): Reader[FieldType[K, Option[V]]] =
     Reader {
-      case backend.Get.Object(v) => field[K](backend.getObjectKey(v, kw.value.name).map(vr.read))
+      case backend.Get.Object(v) => field[K](backend.getObjectKey(v, kw.value.name).map(vr.value.read))
     }
 
-  implicit def recordHeadReader[H, T <: HList](implicit hr: Reader[H], tr: Reader[T],
+  implicit def recordHeadReader[H, T <: HList](implicit hr: Lazy[Reader[H]], tr: Lazy[Reader[T]],
                                                ev: H <:< FieldType[_, _]): Reader[H :: T] =
     Reader {
-      case bv@backend.Get.Object(_) => hr.read(bv) :: tr.read(bv)
+      case bv@backend.Get.Object(_) => hr.value.read(bv) :: tr.value.read(bv)
     }
 
   implicit val hnilReader: Reader[HNil] = Reader { case _ => HNil }
@@ -126,12 +130,12 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
         .flatMap(backend.Extract.String.unapply)
   }
 
-  implicit def coproductReader[K <: Symbol, V, T <: Coproduct](implicit vr: Reader[V], tr: Reader[T],
+  implicit def coproductReader[K <: Symbol, V, T <: Coproduct](implicit vr: Lazy[Reader[V]], tr: Lazy[Reader[T]],
                                                                kw: Witness.Aux[K]): Reader[FieldType[K, V] :+: T] =
     Reader {
       case bv@ObjectWithDiscriminator(key) =>
-        if (key == kw.value.name) Inl[FieldType[K, V], T](field[K](vr.read(bv)))
-        else Inr[FieldType[K, V], T](tr.read(bv))
+        if (key == kw.value.name) Inl[FieldType[K, V], T](field[K](vr.value.read(bv)))
+        else Inr[FieldType[K, V], T](tr.value.read(bv))
     }
 
   implicit val cnilReader: Reader[CNil] = Reader {
