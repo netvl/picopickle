@@ -2,20 +2,20 @@ package io.github.netvl.picopickle
 
 import org.scalatest.{ShouldMatchers, FreeSpec}
 
-object MatchersTest {
+object ExtractorsTest {
   object ComplexObjects {
     case class A(x: Int, y: String, z: B)
     case class B(a: Boolean, b: Double)
   }
 }
 
-class MatchersTest extends FreeSpec with ShouldMatchers {
-  import MatchersTest._
+class ExtractorsTest extends FreeSpec with ShouldMatchers {
+  import ExtractorsTest._
   import CollectionsPickler._
-  import matchers._
+  import extractors._
 
-  "Matchers" - {
-    "should extract" - {
+  "Extractors" - {
+    "should extract from backend representation" - {
       "null" in {
         `null`.isDefinedAt(null: Any) shouldBe true
         (`null`(null: Any): Any) shouldBe (null: Any)

@@ -13,7 +13,7 @@ trait DefaultPickler
   with PrimitiveReaderWritersComponent
   with CollectionReaderWritersComponent
   with TupleReaderWritersComponent
-  with MatchersComponent
+  with ExtractorsComponent
   with TypesComponent {
   this: BackendComponent =>
 
