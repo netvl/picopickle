@@ -200,6 +200,23 @@ trait TypesComponent { this: BackendComponent =>
      * of the constructed reader delegates to [[scala.PartialFunction.isDefinedAt isDefinedAt]] on
      * the partial function.
      *
+     * An example:
+     * {{{
+     *   case class A(x: Int, y: String)
+     *
+     *   implicit val aReader: Reader[A] = Reader {
+     *     import matchers._
+     *
+     *     object(
+     *       ("a" -> number.andThen(_.intValue)) ::
+     *       ("b" -> string) ::
+     *       HNil
+     *     ).andThen {
+     *       case x :: y :: HNil => A(x, y)
+     *     }
+     *   }
+     * }}}
+     *
      * @param f a partial function from backend representation to the target type
      * @tparam T target type
      * @return a reader delegating to the provided function.
