@@ -1,6 +1,8 @@
-package io.github.netvl.picopickle
+package io.github.netvl.picopickle.backends.collections
 
 import shapeless.syntax.typeable._
+
+import io.github.netvl.picopickle.Backend
 
 object CollectionsBackend extends Backend {
   override type BValue = Any
@@ -44,17 +46,3 @@ object CollectionsBackend extends Backend {
   def anyToValue(any: Any): BValue = any
   def valueToAny(value: BValue): Any = value
 }
-
-trait CollectionsBackendComponent extends BackendComponent {
-  override val backend = CollectionsBackend
-}
-
-trait CollectionsPickler extends DefaultPickler with CollectionsBackendComponent {
-  override implicit val charWriter: Writer[Char] = Writer[Char] {
-    case c: Char => c
-  }
-  override implicit val charReader: Reader[Char] = Reader[Char] {
-    case c: Char => c
-  }
-}
-object CollectionsPickler extends CollectionsPickler

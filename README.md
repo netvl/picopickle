@@ -119,7 +119,7 @@ any customization (e.g. you don't need to define custom serializers for your typ
 import the internals of one of these picklers:
 
 ```scala
-import io.github.netvl.picopickle.CollectionsPickler._
+import io.github.netvl.picopickle.backends.collections.CollectionsPickler._
 
 case class A(x: Int, y: String)
 
