@@ -1,6 +1,6 @@
-package io.github.netvl.picopickle
+package io.github.netvl.picopickle.backends.collections
 
-import org.scalatest.{ShouldMatchers, FreeSpec}
+import org.scalatest.{FreeSpec, ShouldMatchers}
 
 import scala.collection.immutable.ListMap
 
@@ -30,7 +30,6 @@ object CollectionsPicklerTest {
 
 class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
   import CollectionsPickler._
-  import CollectionsPicklerTest._
 
   def testRW[T: Reader: Writer](t: T, a: Any): Unit = {
     val s = write(t)
@@ -81,7 +80,7 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
       }
 
       "case class to a map" in {
-        import CaseClass._
+        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.CaseClass._
 
         testRW(
           A(10, "hi"),
@@ -93,13 +92,13 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
       }
 
       "case object to an empty map" in {
-        import CaseObject._
+        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.CaseObject._
 
         testRW(A, Map())
       }
 
       "sealed trait hierarchy to a map with a discriminator" in {
-        import SealedTrait._
+        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.SealedTrait._
 
         testRW[Root](
           A(12, "hello"),
@@ -121,7 +120,7 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
       }
 
       "recursive types" in {
-        import Recursives._
+        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.Recursives._
 
         testRW[Root](A, Map("$variant" -> "A"))
         testRW[Root](

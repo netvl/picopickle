@@ -26,6 +26,9 @@ trait Backend {
   def makeArray(v: Vector[BValue]): BArray
   def getArray(value: BValue): Option[BArray]
 
+  def getArrayLength(arr: BArray): Int
+  def getArrayValueAt(arr: BArray, idx: Int): BValue
+
   def fromString(str: BString): String
   def makeString(s: String): BString
   def getString(value: BValue): Option[BString]
