@@ -17,7 +17,7 @@ trait DefaultSealedTraitDiscriminatorComponent extends SealedTraitDiscriminatorC
   override val discriminatorKey: String = "$variant"
 }
 
-trait AnnotationSupportSymbolicLabellingComponent {
+trait AnnotationSupportingSymbolicLabellingComponent {
   implicit def mkSymbolicLabelling[T]: DefaultSymbolicLabelling[T] =
     macro AnnotationSupportSymbolicLabelling.mkDefaultSymbolicLabellingImpl[T]
 }
@@ -66,7 +66,7 @@ class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledM
     tpe.decls
       .collect { case d if d.name == termNames.CONSTRUCTOR => d.asMethod }
       .flatMap(_.paramLists.flatten)
-      .filter(_.name == sym.name)
+      .filter(_.name == sym.name)  // don't know if this is a good idea but I see no other way
       .flatMap(_.annotations)
       .find(isKeyAnnotation)
       .flatMap(_.tree.children.tail.headOption)
