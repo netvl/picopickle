@@ -243,9 +243,10 @@ Backends
 Plans
 -----
 
-* Improve custom serializers ergonomics
+* Improve custom serializers writing ergonomics
 * Add proper exception handling
 * Consider adding support for more types
+* Consider adding more extractors (e.g. for tuples)
 * Add more backends (e.g. BSON backend)
 * Add more tests
 * Add more documentation
@@ -259,6 +260,8 @@ Changelog
 * Added generic handling for accurate numbers serialization
 * Added collections backend
 * Support for recursive types
+* Added extractors
+* Improved API for custom serializers
 * Started adding tests
 
 ### 0.0.2
