@@ -254,7 +254,7 @@ Plans
 Changelog
 ---------
 
-### 0.0.3 (in progress)
+### 0.1.0 (in progress)
 
 * More serializer instances
 * Added generic handling for accurate numbers serialization
@@ -262,6 +262,7 @@ Changelog
 * Support for recursive types
 * Added extractors
 * Improved API for custom serializers
+* Added renaming support for fields and sealed trait variants
 * Started adding tests
 
 ### 0.0.2
