@@ -3,12 +3,81 @@ package io.github.netvl.picopickle
 import shapeless._
 import shapeless.labelled._
 
-trait SealedTraitDiscriminator {
+import scala.language.experimental.macros
+import scala.annotation.StaticAnnotation
+import scala.reflect.macros.whitebox
+
+class key(k: String) extends StaticAnnotation
+
+trait SealedTraitDiscriminatorComponent {
   def discriminatorKey: String
 }
 
-trait DefaultSealedTraitDiscriminator extends SealedTraitDiscriminator {
+trait DefaultSealedTraitDiscriminatorComponent extends SealedTraitDiscriminatorComponent {
   override val discriminatorKey: String = "$variant"
+}
+
+trait AnnotationSupportSymbolicLabellingComponent {
+  implicit def mkSymbolicLabelling[T]: DefaultSymbolicLabelling[T] =
+    macro AnnotationSupportSymbolicLabelling.mkDefaultSymbolicLabellingImpl[T]
+}
+
+// Extracted almost entirely from shapeless and tweaked to support custom annotations
+class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledMacros(cc) {
+  import c.universe._
+
+  override def mkDefaultSymbolicLabellingImpl[T](implicit tTag: WeakTypeTag[T]): Tree = {
+    val tTpe = weakTypeOf[T]
+    val labels: List[String] =
+      if(isProduct(tTpe)) fieldSymbolsOf(tTpe).map(obtainKeyOfField(_, tTpe))
+      else if(isCoproduct(tTpe)) ctorsOf(tTpe).map(obtainKeyOfType)
+      else c.abort(c.enclosingPosition, s"$tTpe is not case class like or the root of a sealed family of types")
+
+    val labelTpes = labels.map(SingletonSymbolType(_))
+    val labelValues = labels.map(mkSingletonSymbol)
+
+    val labelsTpe = mkHListTpe(labelTpes)
+    val labelsValue =
+      labelValues.foldRight(q"_root_.shapeless.HNil": Tree) {
+        case (elem, acc) => q"_root_.shapeless.::($elem, $acc)"
+      }
+
+    q"""
+      new _root_.shapeless.DefaultSymbolicLabelling[$tTpe] {
+        type Out = $labelsTpe
+        def apply(): $labelsTpe = $labelsValue
+      }
+    """
+  }
+
+  def isKeyAnnotation(ann: Annotation): Boolean = ann.tree.tpe == typeOf[key]
+
+  def obtainKeyOfSym(sym: Symbol) = {
+    sym.annotations
+      .find(isKeyAnnotation)
+      .flatMap(_.tree.children.tail.headOption)
+      .collect { case Literal(Constant(s)) => s.toString }
+      .getOrElse(nameAsString(sym.name))
+  }
+
+  def obtainKeyOfType(tpe: Type): String = obtainKeyOfSym(tpe.typeSymbol)
+
+  def obtainKeyOfField(sym: Symbol, tpe: Type): String = {
+    tpe.decls
+      .collect { case d if d.name == termNames.CONSTRUCTOR => d.asMethod }
+      .flatMap(_.paramLists.flatten)
+      .filter(_.name == sym.name)
+      .flatMap(_.annotations)
+      .find(isKeyAnnotation)
+      .flatMap(_.tree.children.tail.headOption)
+      .collect { case Literal(Constant(s)) => s.toString }
+      .getOrElse(nameAsString(sym.name))
+  }
+
+  def fieldSymbolsOf(tpe: Type): List[TermSymbol] =
+    tpe.decls.toList collect {
+      case sym: TermSymbol if isCaseAccessorLike(sym) => sym
+    }
 }
 
 trait LowerPriorityShapelessWriters2 {
@@ -31,7 +100,7 @@ trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
 }
 
 trait ShapelessWriters extends LowerPriorityShapelessWriters {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent =>
 
   implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K],
                                                      vw: Lazy[Writer[V]]): Writer[FieldType[K, Option[V]]] =
@@ -107,7 +176,7 @@ trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
 }
 
 trait ShapelessReaders extends LowerPriorityShapelessReaders {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent =>
   
   implicit def optionFieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
                                                      vr: Lazy[Reader[V]]): Reader[FieldType[K, Option[V]]] =
@@ -148,5 +217,5 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
 }
 
 trait ShapelessReaderWritersComponent extends ShapelessReaders with ShapelessWriters {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminator =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent =>
 }

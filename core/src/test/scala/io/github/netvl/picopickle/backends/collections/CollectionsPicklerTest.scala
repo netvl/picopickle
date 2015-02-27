@@ -1,5 +1,6 @@
 package io.github.netvl.picopickle.backends.collections
 
+import io.github.netvl.picopickle.key
 import org.scalatest.{FreeSpec, ShouldMatchers}
 
 import scala.collection.immutable.ListMap
@@ -26,10 +27,17 @@ object CollectionsPicklerTest {
     case class B(x: Int, b: Option[B]) extends Root
     case class C(next: Root) extends Root
   }
+
+  object Renames {
+    sealed trait Root
+    @key("0") case object A extends Root
+    case class B(x: Int, @key("zzz") y: String) extends Root
+  }
 }
 
 class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
   import CollectionsPickler._
+  import CollectionsPicklerTest._
 
   def testRW[T: Reader: Writer](t: T, a: Any): Unit = {
     val s = write(t)
@@ -80,7 +88,7 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
       }
 
       "case class to a map" in {
-        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.CaseClass._
+        import CaseClass._
 
         testRW(
           A(10, "hi"),
@@ -92,13 +100,13 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
       }
 
       "case object to an empty map" in {
-        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.CaseObject._
+        import CaseObject._
 
         testRW(A, Map())
       }
 
       "sealed trait hierarchy to a map with a discriminator" in {
-        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.SealedTrait._
+        import SealedTrait._
 
         testRW[Root](
           A(12, "hello"),
@@ -120,7 +128,7 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
       }
 
       "recursive types" in {
-        import io.github.netvl.picopickle.backends.collections.CollectionsPicklerTest.Recursives._
+        import Recursives._
 
         testRW[Root](A, Map("$variant" -> "A"))
         testRW[Root](
@@ -143,6 +151,23 @@ class CollectionsPicklerTest extends FreeSpec with ShouldMatchers {
             "next" -> Map(
               "$variant" -> "A"
             )
+          )
+        )
+      }
+
+      "fields and classes renamed with annotations" in {
+        import Renames._
+
+        testRW[Root](
+          A,
+          Map("$variant" -> "0")
+        )
+        testRW[Root](
+          B(12, "hello"),
+          Map(
+            "$variant" -> "B",
+            "x" -> 12,
+            "zzz" -> "hello"
           )
         )
       }

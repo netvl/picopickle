@@ -53,7 +53,9 @@ lazy val core = project
   .settings(
     name := "picopickle-core",
 
-    libraryDependencies ++= commonDependencies(scalaVersion.value),
+    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value
+    ),
 
     sourceGenerators in Compile += task[Seq[File]] {
       val outFile = (sourceManaged in Compile).value / "io" / "github" / "netvl" / "picopickle" / "generated.scala"

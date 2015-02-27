@@ -9,7 +9,8 @@ trait Pickler {
 trait DefaultPickler
   extends Pickler
   with ShapelessReaderWritersComponent
-  with DefaultSealedTraitDiscriminator
+  with AnnotationSupportSymbolicLabellingComponent
+  with DefaultSealedTraitDiscriminatorComponent
   with PrimitiveReaderWritersComponent
   with CollectionReaderWritersComponent
   with TupleReaderWritersComponent
