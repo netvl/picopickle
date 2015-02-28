@@ -92,7 +92,7 @@ trait PrimitiveReaders {
   }
 
   implicit def optionReader[T](implicit r: Reader[T]): Reader[Option[T]] = Reader {
-    case backend.Extract.Array(arr) => arr.headOption.map(r.read)
+    case backend.Extract.Array(arr) if arr.length <= 1 => arr.headOption.map(r.read)
   }
   implicit def someReader[T: Reader]: Reader[Some[T]] = Reader {
     case bv => optionReader[T].read(bv).asInstanceOf[Some[T]]

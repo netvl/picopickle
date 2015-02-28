@@ -207,11 +207,11 @@ trait TypesComponent { this: BackendComponent =>
      *   implicit val aReader: Reader[A] = Reader {
      *     import extractors._
      *
-     *     obj(
+     *     obj {
      *       ("a" -> num.int) ::
      *       ("b" -> str) ::
      *       HNil
-     *     ).andThenUnpacked(A.apply)
+     *     } >>> A.apply _
      *   }
      * }}}
      *

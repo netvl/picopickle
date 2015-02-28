@@ -166,11 +166,6 @@ trait ExtractorsComponent {
         }
     }
 
-    implicit class ExtractorAndThenUnpacked[L <: HList](m: Extractor[L]) {
-      def andThenUnpacked[F, U](f: F)(implicit tp: FnToProduct.Aux[F, L => U]): Extractor[U] =
-        m.andThen(tp.apply(f))
-    }
-
     implicit class NumberExtractorExt(m: Extractor[Number]) {
       def byte: Extractor[Byte] = m.andThen(_.byteValue)
       def short: Extractor[Short] = m.andThen(_.shortValue)
@@ -178,6 +173,29 @@ trait ExtractorsComponent {
       def long: Extractor[Long] = m.andThen(_.longValue)
       def float: Extractor[Float] = m.andThen(_.floatValue)
       def double: Extractor[Double] = m.andThen(_.doubleValue)
+    }
+
+    implicit class ExtractorHListExt[L <: HList](m: Extractor[L]) {
+      def >>>[F, U](f: F)(implicit tp: FnToProduct.Aux[F, L => U]): Extractor[U] =
+        m.andThen(tp.apply(f))
+    }
+
+    implicit class ExtractorExt[T](m: Extractor[T]) {
+      def ||(n: Extractor[T]): Extractor[T] = m orElse n
+
+      def >>[U](f: T => U): Extractor[U] = m andThen f
+
+      def ?? : Extractor[Option[T]] = {
+        case bv => m.lift(bv)
+      }
+
+      def |+|[U](n: Extractor[U]): Extractor[Either[T, U]] = new Extractor[Either[T, U]] {
+        override def isDefinedAt(bv: backend.BValue) = m.isDefinedAt(bv) || n.isDefinedAt(bv)
+        override def apply(bv: backend.BValue) = bv match {
+          case _ if m.isDefinedAt(bv) => Left(m(bv))
+          case _ if n.isDefinedAt(bv) => Right(n(bv))
+        }
+      }
     }
   }
 }

@@ -84,14 +84,14 @@ class ExtractorsTest extends FreeSpec with ShouldMatchers {
           ("a" -> bool) ::
           ("b" -> num.double) ::
           HNil
-        }.andThenUnpacked(B.apply _)
+        } >>> B.apply _
 
         val am = obj {
           ("x" -> num.int) ::
           ("y" -> str) ::
           ("z" -> bm) ::
           HNil
-        }.andThenUnpacked(A.apply _)
+        } >>> A.apply _
 
         val t = Map(
           "x" -> 10,
