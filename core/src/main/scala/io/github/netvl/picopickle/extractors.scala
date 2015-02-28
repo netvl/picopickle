@@ -10,7 +10,7 @@ trait ExtractorsComponent {
   this: BackendComponent with TypesComponent =>
 
   object extractors {
-    type Extractor[T] = PartialFunction[backend.BValue, T]
+    type Extractor[+T] = PartialFunction[backend.BValue, T]
 
     def value[T](implicit rt: Reader[T]) = new PartialFunction[backend.BValue, T] {
       override def isDefinedAt(bv: backend.BValue): Boolean = rt.canRead(bv)

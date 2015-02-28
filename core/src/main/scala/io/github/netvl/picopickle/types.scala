@@ -98,12 +98,13 @@ trait TypesComponent { this: BackendComponent =>
      * {{{
      *   case class A(x: Int, y: String)
      *
-     *   implicit val aWriter: Writer[A] = Writer {
-     *     case A(x, y) => backend.makeObject(Map(
-     *       "a" -> backend.makeNumber(x),
-     *       "b" -> backend.makeString(y)
-     *     ))
-     *   }
+     *   import converters._
+     *   implicit val aWriter: Writer[A] =
+     *     A.unapply _ >>> obj {
+     *       ("a" -> num.int) ::
+     *       ("b" -> str) ::
+     *       HNil
+     *     }
      * }}}
      *
      * @param ff a function defining writer behavior
@@ -204,15 +205,13 @@ trait TypesComponent { this: BackendComponent =>
      * {{{
      *   case class A(x: Int, y: String)
      *
-     *   implicit val aReader: Reader[A] = Reader {
-     *     import extractors._
-     *
+     *   import converters._
+     *   implicit val aReader: Reader[A] =
      *     obj {
      *       ("a" -> num.int) ::
      *       ("b" -> str) ::
      *       HNil
      *     } >>> A.apply _
-     *   }
      * }}}
      *
      * @param f a partial function from backend representation to the target type
@@ -229,6 +228,12 @@ trait TypesComponent { this: BackendComponent =>
   type ReadWriter[T] = Reader[T] with Writer[T]
 
   object ReadWriter {
+    def apply[T](r: Reader[T], w: Writer[T]): ReadWriter[T] = new Reader[T] with Writer[T] {
+      override def canRead(value: backend.BValue) = r.canRead(value)
+      override def read(value: backend.BValue) = r.read(value)
+      override def write0(value: T, acc: Option[backend.BValue]) = w.write0(value, acc)
+    }
+
     def reading[T](rf: PF[backend.BValue, T]) = new WriterBuilder(rf)
     def writing[T](wf: PF[T, backend.BValue]) = new ReaderBuilder(wf)
     
@@ -243,7 +248,6 @@ trait TypesComponent { this: BackendComponent =>
     private class PfReadWriter[T](rf: PF[backend.BValue, T], wf: PF[T, backend.BValue]) extends Reader[T] with Writer[T] {
       override def canRead(value: backend.BValue) = rf.isDefinedAt(value)
       override def read(value: backend.BValue) = rf(value)
-
       override def write0(value: T, acc: Option[backend.BValue]) = wf(value)
     }
   }
