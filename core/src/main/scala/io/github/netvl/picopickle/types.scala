@@ -153,7 +153,7 @@ trait TypesComponent { this: BackendComponent =>
 
     /**
      * Combines this reader with the specified fallback reader which is used if this reader can't
-     * handle the provided value based on [[Reader.canRead canRead]] result.
+     * handle the provided value based on its [[Reader.canRead canRead]] result.
      *
      * @param other the fallback reader
      * @return a reader which delegates to this reader if this reader can deserialize a value
@@ -205,15 +205,13 @@ trait TypesComponent { this: BackendComponent =>
      *   case class A(x: Int, y: String)
      *
      *   implicit val aReader: Reader[A] = Reader {
-     *     import matchers._
+     *     import extractors._
      *
-     *     object(
-     *       ("a" -> number.andThen(_.intValue)) ::
-     *       ("b" -> string) ::
+     *     obj(
+     *       ("a" -> num.int) ::
+     *       ("b" -> str) ::
      *       HNil
-     *     ).andThen {
-     *       case x :: y :: HNil => A(x, y)
-     *     }
+     *     ).andThenUnpacked(A.apply)
      *   }
      * }}}
      *
