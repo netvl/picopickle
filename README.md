@@ -251,7 +251,7 @@ Plans
 * Improve custom serializers writing ergonomics
 * Add proper exception handling
 * Consider adding support for more types
-* Consider adding more extractors (e.g. for tuples)
+* Consider adding more converters (e.g. for tuples)
 * Add more backends (e.g. BSON backend)
 * Add more tests
 * Add more documentation
@@ -265,7 +265,7 @@ Changelog
 * Added generic handling for accurate numbers serialization
 * Added collections backend
 * Support for recursive types
-* Added extractors
+* Added converters
 * Improved API for custom serializers
 * Added renaming support for fields and sealed trait variants
 * Started adding tests
