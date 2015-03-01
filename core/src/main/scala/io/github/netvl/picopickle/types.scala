@@ -100,7 +100,7 @@ trait TypesComponent { this: BackendComponent =>
      *
      *   import converters._
      *   implicit val aWriter: Writer[A] =
-     *     A.unapply _ >>> obj {
+     *     unlift(A.unapply) >>> obj {
      *       ("a" -> num.int) ::
      *       ("b" -> str) ::
      *       HNil

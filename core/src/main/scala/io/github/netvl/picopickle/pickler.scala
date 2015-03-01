@@ -15,6 +15,7 @@ trait DefaultPickler
   with CollectionReaderWritersComponent
   with TupleReaderWritersComponent
   with ExtractorsComponent
+  with ConvertersComponent
   with TypesComponent {
   this: BackendComponent =>
 
