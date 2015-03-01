@@ -33,7 +33,6 @@ trait ConvertersComponent {
         }
       }
 
-      final def ?? : Converter[T, Option[U]] = this.lift
       final def lift: Converter[T, Option[U]] = new Converter[T, Option[U]] {
         override def toBackend(v: T): backend.BValue = self.toBackend(v)
         override def isDefinedAt(bv: backend.BValue): Boolean = true
@@ -43,15 +42,11 @@ trait ConvertersComponent {
       }
     }
     trait LowerPriorityImplicits {
-      implicit def converterAsWriter[T](c: Converter[T, Any]): Writer[T] =
-        Writer {
-          case v => c.toBackend(v)
-        }
+      def converterAsReader[U](c: Converter[Nothing, U]): Reader[U]
+      def converterAsWriter[T](c: Converter[T, Any]): Writer[T]
 
-      implicit def converterAsReader[U](c: Converter[Nothing, U]): Reader[U] =
-        Reader {
-          case bv if c.isDefinedAt(bv) => c.fromBackend(bv)
-        }
+      implicit def converterAsReadWriter[T](c: Converter[T, T]): ReadWriter[T] =
+        ReadWriter[T](converterAsReader(c), converterAsWriter(c))
     }
     object Converter extends LowerPriorityImplicits {
       type Id[T] = Converter[T, T]
@@ -69,15 +64,22 @@ trait ConvertersComponent {
           override def fromBackend(bv: backend.BValue): U = from(bv)
         }
 
-      implicit def converterAsReadWriter[T](c: Converter[T, T]): ReadWriter[T] =
-        ReadWriter[T](c, c)
-
       implicit class ConverterHListOps[L, T](c: Converter[T, L]) {
         def >>>[F, V](f: F)(implicit ev: L <:< HList, tp: FnToProduct.Aux[F, L => V]): Converter[T, V] =
           this andThenUnpacked f
         def andThenUnpacked[F, V](f: F)(implicit ev: L <:< HList, tp: FnToProduct.Aux[F, L => V]): Converter[T, V] =
           c >> tp(f)
       }
+
+      implicit def converterAsWriter[T](c: Converter[T, Any]): Writer[T] =
+        Writer {
+          case v => c.toBackend(v)
+        }
+
+      implicit def converterAsReader[U](c: Converter[Nothing, U]): Reader[U] =
+        Reader {
+          case bv if c.isDefinedAt(bv) => c.fromBackend(bv)
+        }
     }
 
     def value[T](implicit wt: Writer[T], rt: Reader[T]): Converter.Id[T] =
