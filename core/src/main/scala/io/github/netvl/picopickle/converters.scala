@@ -106,12 +106,12 @@ trait ConvertersComponent {
     }
 
     trait ObjectMapping[CC <: HList] {
-      type In
-      type Out
+      type In <: HList
+      type Out <: HList
 
       def toBackend(in: In, cc: CC, bo: backend.BObject): backend.BObject
-      def isDefinedAt(bo: backend.BObject, cc: CC): Boolean
-      def fromBackend(bo: backend.BObject, cc: CC): Option[Out]
+      def isDefinedAt(cc: CC, bo: backend.BObject): Boolean
+      def fromBackend(cc: CC, bo: backend.BObject): Option[Out]
     }
     object ObjectMapping {
       type Aux[CC <: HList, In0 <: HList, Out0 <: HList] = ObjectMapping[CC] { type In = In0; type Out = Out0 }
@@ -121,8 +121,8 @@ trait ConvertersComponent {
         override type Out = HNil
 
         override def toBackend(in: HNil, cc: HNil, bo: backend.BObject): backend.BObject = bo
-        override def isDefinedAt(bo: backend.BObject, cc: HNil): Boolean = true
-        override def fromBackend(bo: backend.BObject, cc: HNil): Option[HNil] = Some(HNil)
+        override def isDefinedAt(cc: HNil, bo: backend.BObject): Boolean = true
+        override def fromBackend(cc: HNil, bo: backend.BObject): Option[HNil] = Some(HNil)
       }
 
       implicit def hconsObjectMapping[T, U, CS <: HList, TS <: HList, US <: HList]
@@ -137,33 +137,102 @@ trait ConvertersComponent {
                 val nbo = backend.setObjectKey(bo, k, c.toBackend(t))
                 tm.toBackend(ts, cs, nbo)
             }
-          override def isDefinedAt(bo: backend.BObject, cc: (String, Converter[T, U]) :: CS): Boolean = cc match {
-            case (k, c) :: cs => backend.getObjectKey(bo, k).exists(c.isDefinedAt) && tm.isDefinedAt(bo, cs)
+
+          override def isDefinedAt(cc: (String, Converter[T, U]) :: CS, bo: backend.BObject): Boolean = cc match {
+            case (k, c) :: cs => backend.getObjectKey(bo, k).exists(c.isDefinedAt) && tm.isDefinedAt(cs, bo)
           }
-          override def fromBackend(bo: backend.BObject, s: (String, Converter[T, U]) :: CS): Option[U :: US] = s match {
+
+          override def fromBackend(s: (String, Converter[T, U]) :: CS, bo: backend.BObject): Option[U :: US] = s match {
             case (k, c) :: cc =>
               for {
                 v <- backend.getObjectKey(bo, k)
                 mv <- c.lift.fromBackend(v)
-                mt <- tm.fromBackend(bo, cc)
+                mt <- tm.fromBackend(cc, bo)
               } yield mv :: mt
           }
         }
     }
     
     object obj {
-      def apply[S <: HList](converters: S)(implicit m: ObjectMapping[S]): Converter[m.In, m.Out] =
+      def apply[CC <: HList](converters: CC)(implicit m: ObjectMapping[CC]): Converter[m.In, m.Out] =
         new Converter[m.In, m.Out] {
           override def toBackend(v: m.In): backend.BValue =
             m.toBackend(v, converters, backend.makeEmptyObject)
 
           override def isDefinedAt(bv: backend.BValue): Boolean = bv match {
-            case backend.Get.Object(bo) => m.isDefinedAt(bo, converters)
+            case backend.Get.Object(bo) => m.isDefinedAt(converters, bo)
             case _ => false
           }
 
           override def fromBackend(bv: backend.BValue): m.Out = bv match {
-            case backend.Get.Object(bo) => m.fromBackend(bo, converters).get
+            case backend.Get.Object(bo) => m.fromBackend(converters, bo).get
+          }
+        }
+    }
+
+    trait ArrayMapping[CC <: HList] {
+      type In
+      type Out
+
+      def toBackend(in: In, cc: CC, ba: backend.BArray): backend.BArray
+      def isDefinedAt(cc: CC, ba: backend.BArray, idx: Int): Boolean
+      def fromBackend(cc: CC, ba: backend.BArray, idx: Int): Option[Out]
+    }
+    object ArrayMapping {
+      type Aux[CC <: HList, In0 <: HList, Out0 <: HList] = ArrayMapping[CC] { type In = In0; type Out = Out0 }
+
+      implicit val hnilArrayMapping: Aux[HNil, HNil, HNil] = new ArrayMapping[HNil] {
+        override type In = HNil
+        override type Out = HNil
+
+        override def toBackend(in: HNil, cc: HNil, ba: backend.BArray): backend.BArray = ba
+        override def isDefinedAt(cc: HNil, ba: backend.BArray, idx: Int): Boolean = true
+        override def fromBackend(cc: HNil, ba: backend.BArray, idx: Int): Option[HNil] = Some(HNil)
+      }
+
+      implicit def hconsArrayMapping[T, U, CS <: HList, TS <: HList, US <: HList](implicit tm: Aux[CS, TS, US])
+          : Aux[Converter[T, U] :: CS, T :: TS, U :: US] =
+        new ArrayMapping[Converter[T, U] :: CS] {
+          override type In = T :: TS
+          override type Out = U :: US
+
+          override def toBackend(in: T :: TS, cc: Converter[T, U] :: CS,
+                                 ba: backend.BArray): backend.BArray = (in, cc) match {
+            case (t :: ts, c :: cs) =>
+              val nba = backend.pushToArray(ba, c.toBackend(t))
+              tm.toBackend(ts, cs, nba)
+          }
+
+          override def isDefinedAt(cc: Converter[T, U] :: CS, ba: backend.BArray, idx: Int): Boolean = cc match {
+            case c :: cs if idx < backend.getArrayLength(ba) =>
+              c.isDefinedAt(backend.getArrayValueAt(ba, idx)) && tm.isDefinedAt(cs, ba, idx + 1)
+            case _ => false
+          }
+
+          override def fromBackend(cc: Converter[T, U] :: CS, ba: backend.BArray, idx: Int): Option[U :: US] = cc match {
+            case c :: cs if idx < backend.getArrayLength(ba) =>
+              val bv = backend.getArrayValueAt(ba, idx)
+              for {
+                mv <- c.lift.fromBackend(bv)
+                mt <- tm.fromBackend(cs, ba, idx+1)
+              } yield mv :: mt
+            case _ => None
+          }
+        }
+    }
+
+    object arr {
+      def apply[CC <: HList](converters: CC)(implicit m: ArrayMapping[CC]): Converter[m.In, m.Out] =
+        new Converter[m.In, m.Out] {
+          override def toBackend(v: m.In) = m.toBackend(v, converters, backend.makeEmptyArray)
+
+          override def isDefinedAt(bv: backend.BValue) = bv match {
+            case backend.Get.Array(ba) => m.isDefinedAt(converters, ba, 0)
+            case _ => false
+          }
+
+          override def fromBackend(bv: backend.BValue) = bv match {
+            case backend.Get.Array(ba) => m.fromBackend(converters, ba, 0).get
           }
         }
     }
@@ -188,7 +257,7 @@ trait ConvertersComponent {
         }
     }
 
-    implicit class NumberConverterExt[U](m: Converter[Number, Number]) {
+    implicit class NumberConverterExt[U](m: Converter.Id[Number]) {
       private def conv[T](implicit f: T => Number): T => Number = f
 
       def byte: Converter.Id[Byte] = conv[Byte] >> m >> (_.byteValue)

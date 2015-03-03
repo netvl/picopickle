@@ -28,6 +28,8 @@ trait Backend {
 
   def getArrayLength(arr: BArray): Int
   def getArrayValueAt(arr: BArray, idx: Int): BValue
+  def pushToArray(arr: BArray, value: BValue): BArray
+  def makeEmptyArray: BArray = makeArray(Vector.empty)
 
   def fromString(str: BString): String
   def makeString(s: String): BString

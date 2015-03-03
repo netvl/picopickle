@@ -24,6 +24,7 @@ object CollectionsBackend extends Backend {
   override def fromArray(arr: BArray): Vector[BValue] = arr
   override def makeArray(v: Vector[BValue]): BArray = v
   override def getArray(value: BValue): Option[BArray] = value.cast[Vector[Any]]
+  override def pushToArray(arr: BArray, value: BValue) = arr :+ value
 
   override def getArrayLength(arr: BArray): Int = arr.length
   override def getArrayValueAt(arr: BArray, idx: Int): BValue = arr(idx)

@@ -46,6 +46,7 @@ object JsonAst {
     override def fromArray(arr: BArray): Vector[BValue] = arr.values
     override def makeArray(v: Vector[BValue]): BArray = JsonArray(v)
     override def getArray(value: BValue): Option[BArray] = value.cast[JsonArray]
+    override def pushToArray(arr: BArray, value: BValue) = JsonArray(arr.values :+ value)
 
     override def getArrayLength(arr: BArray): Int = arr.values.length
     override def getArrayValueAt(arr: BArray, idx: Int): BValue = arr.values(idx)
