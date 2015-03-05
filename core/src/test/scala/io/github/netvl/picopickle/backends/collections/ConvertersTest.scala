@@ -4,6 +4,8 @@ import org.scalatest.{FreeSpec, ShouldMatchers}
 
 import shapeless._
 
+import scala.collection.immutable.TreeSet
+
 object ConvertersTest {
   object ComplexObjects {
     case class A(x: Int, y: String, z: B)
@@ -120,6 +122,23 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         ac.fromBackend(t) shouldEqual s
 
         ac.toBackend(s) shouldEqual t
+      }
+
+      "homogeneous arrays" in {
+        val cv = arr.as[Vector] of num.int
+        val cs = arr.as[Set] of num.int
+
+        val c1 = Vector(1, 2, 3)
+        cv.isDefinedAt(c1) shouldBe true
+        cv.fromBackend(c1) shouldEqual Vector(1, 2, 3)
+        cv.toBackend(Vector(1, 2, 3)) shouldEqual Vector(1, 2, 3)
+        cs.isDefinedAt(c1) shouldBe true
+        cs.fromBackend(c1) shouldEqual Set(1, 2, 3)
+        cs.toBackend(TreeSet(1, 2, 3)) shouldEqual Vector(1, 2, 3)
+
+        val c2 = Vector("a", "e")
+        cv.isDefinedAt(c2) shouldBe false
+        cs.isDefinedAt(c2) shouldBe false
       }
     }
   }

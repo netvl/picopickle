@@ -3,7 +3,9 @@ package io.github.netvl.picopickle
 import shapeless._
 import shapeless.ops.function.FnToProduct
 
-import scala.language.implicitConversions
+import scala.collection.breakOut
+import scala.collection.generic.CanBuildFrom
+import scala.language.{higherKinds, implicitConversions}
 
 trait ConvertersComponent {
   this: BackendComponent with TypesComponent =>
@@ -235,6 +237,16 @@ trait ConvertersComponent {
             case backend.Get.Array(ba) => m.fromBackend(converters, ba, 0).get
           }
         }
+
+      def as[C[T] <: Traversable[T]] = new AsBuilder[C]
+
+      class AsBuilder[C[T] <: Traversable[T]] {
+        def of[U](m: Converter.Id[U])(implicit cbf: CanBuildFrom[C[U], U, C[U]]): Converter.Id[C[U]] =
+          Converter[C[U], C[U]](c => backend.makeArray(c.toVector.map(m.toBackend)(breakOut))) {
+            case backend.Extract.Array(arr) if arr.forall(m.isDefinedAt) =>
+              arr.map[U, C[U]](m.fromBackend)(breakOut)
+          }
+      }
     }
 
     def unlift[T, U](f: T => Option[U]): T => U = t => f(t).get
