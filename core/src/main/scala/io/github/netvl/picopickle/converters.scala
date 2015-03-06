@@ -170,6 +170,18 @@ trait ConvertersComponent {
             case backend.Get.Object(bo) => m.fromBackend(converters, bo).get
           }
         }
+
+      def as[M[A, B] <: Map[A, B]] = new AsBuilder[M]
+
+      class AsBuilder[M[A, B] <: Map[A, B]] {
+        def to[V](conv: Converter.Id[V])(implicit cbf: CanBuildFrom[M[String, V], (String, V), M[String, V]]): Converter.Id[M[String, V]] =
+          Converter[M[String, V], M[String, V]](m => backend.makeObject(m.mapValues(conv.toBackend))) {
+            case backend.Extract.Object(obj) if obj.values.forall(conv.isDefinedAt) =>
+              val b = cbf()
+              b ++= obj.mapValues(conv.fromBackend)
+              b.result()
+          }
+      }
     }
 
     trait ArrayMapping[CC <: HList] {
@@ -241,10 +253,10 @@ trait ConvertersComponent {
       def as[C[T] <: Traversable[T]] = new AsBuilder[C]
 
       class AsBuilder[C[T] <: Traversable[T]] {
-        def of[U](m: Converter.Id[U])(implicit cbf: CanBuildFrom[C[U], U, C[U]]): Converter.Id[C[U]] =
-          Converter[C[U], C[U]](c => backend.makeArray(c.toVector.map(m.toBackend)(breakOut))) {
-            case backend.Extract.Array(arr) if arr.forall(m.isDefinedAt) =>
-              arr.map[U, C[U]](m.fromBackend)(breakOut)
+        def of[U](conv: Converter.Id[U])(implicit cbf: CanBuildFrom[C[U], U, C[U]]): Converter.Id[C[U]] =
+          Converter[C[U], C[U]](c => backend.makeArray(c.toVector.map(conv.toBackend)(breakOut))) {
+            case backend.Extract.Array(arr) if arr.forall(conv.isDefinedAt) =>
+              arr.map[U, C[U]](conv.fromBackend)(breakOut)
           }
       }
     }
