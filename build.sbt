@@ -116,7 +116,7 @@ lazy val core = project
   )
 
 lazy val jawn = project
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test")
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle-backend-jawn",
