@@ -1,0 +1,212 @@
+file-pattern: ${name}PicklerTest.scala
+template: |
+  package ${package}
+
+  import scala.collection.immutable.ListMap
+  import org.scalatest.{FreeSpec, ShouldMatchers}
+  import io.github.netvl.picopickle.Fixtures._
+
+  class ${name}PicklerTest extends FreeSpec with ShouldMatchers {
+    import ${picklerClass}._
+
+    def testRW[T: Reader: Writer](t: T, a: ${targetType}): Unit = {
+      val s = ${write}(t)
+      s shouldEqual a
+      val u = ${read}(s)
+      u shouldEqual t
+    }
+
+    "A ${lowerName} pickler" - {
+      "should serialize and deserialize" - {
+  ${cases}
+      }
+    }
+  }
+indent: 6
+variants:
+  collections:
+    name: Collections
+    lowerName: collections
+    write: write
+    read: read
+    targetType: Any
+    package: io.github.netvl.picopickle.backends.collections
+    picklerClass: CollectionsPickler
+    targetProject: core
+  json:
+    name: JSON
+    lowerName: JSON
+    write: writeString
+    read: readString
+    targetType: String
+    package: io.github.netvl.picopickle.backends.jawn
+    picklerClass: JsonPickler
+    targetProject: jawn
+global:
+  rw:
+    mapping:
+      - source
+      - collections
+      - json
+cases:
+  - name: numbers to numbers
+    rw:
+      - - '1: Byte'
+        - '1: Byte'
+        - '"1"'
+      - - '2: Short'
+        - '2: Short'
+        - '"2"'
+      - - '3: Int'
+        - '3: Int'
+        - '"3"'
+      - - '4: Long'
+        - '4: Long'
+        - '"4"'
+      - - '5: Float'
+        - '5: Float'
+        - '"5"'
+      - - '6: Double'
+        - '6: Double'
+        - '"6"'
+  - name: characters
+    rw:
+      input:
+        - - "'a'"
+          - "'a'"
+          - '""""a""""'
+  - name: string to string
+    rw:
+      - - '"hello world"'
+        - '"hello world"'
+        - '""""hello world""""'
+  - name: null to null
+    rw:
+      - - 'null'
+        - 'null'
+        - '"null"'
+  - name: unit to an empty object
+    rw:
+      - - '()'
+        - 'Map()'
+        - '"{}"'
+  - name: boolean to boolean
+    rw:
+      - - 'true'
+        - 'true'
+        - '"true"'
+      - - 'false'
+        - 'false'
+        - '"false"'
+  - name: collection to an array
+    rw:
+      - - 'Seq("a", "b")'
+        - 'Vector("a", "b")'
+        - '"""["a","b"]"""'
+  - name: map to an array of arrays
+    rw:
+      - - 'ListMap(1 -> 2, 3 -> 4)'
+        - 'Vector(Vector(1, 2), Vector(3, 4))'
+        - '"""[[1,2],[3,4]]"""'
+  - name: map with string keys to an object
+    rw:
+      - - 'ListMap("a" -> 1, "b" -> 2)'
+        - 'Map("a" -> 1, "b" -> 2)'
+        - '"""{"a":1,"b":2}"""'
+  - name: case class to an object
+    prepend: |
+      import CaseClass._
+    rw:
+      - - 'A(10, "hi")'
+        - 'Map("x" -> 10, "y" -> "hi")'
+        - '"""{"x":10,"y":"hi"}"""'
+  - name: case object to an empty object
+    prepend: |
+      import CaseObject._
+    rw:
+      - - 'A'
+        - 'Map()'
+        - '"{}"'
+  - name: sealed trait hierarchy to an object with a discriminator key
+    prepend: |
+      import SealedTrait._
+    rw:
+      - type: Root
+        items:
+          - 'A(12, "hello")'
+          - |
+            Map(
+              "$variant" -> "A",
+              "x" -> 12,
+              "y" -> "hello"
+            )
+          - '"""{"$variant":"A","x":12,"y":"hello"}"""'
+      - type: Root
+        items:
+          - 'B(42L, Vector(1.0, 2.0, 3.0))'
+          - |
+            Map(
+              "$variant" -> "B",
+              "a" -> 42L,
+              "b" -> Vector(1.0, 2.0, 3.0)
+            )
+          - '"""{"$variant":"B","a":42,"b":[1,2,3]}"""'
+      - type: Root
+        items:
+          - 'C'
+          - 'Map("$variant" -> "C")'
+          - '"""{"$variant":"C"}"""'
+  - name: recursive types
+    prepend: |
+      import Recursives._
+    rw:
+      - type: Root
+        items:
+          - 'A'
+          - 'Map("$variant" -> "A")'
+          - '"""{"$variant":"A"}"""'
+      - type: Root
+        items:
+          - 'B(1, Some(B(2, Some(B(3, None)))))'
+          - |
+            Map(
+              "$variant" -> "B",
+              "x" -> 1,
+              "b" -> Map(
+                "x" -> 2,
+                "b" -> Map(
+                  "x" -> 3
+                )
+              )
+            )
+          - '"""{"$variant":"B","x":1,"b":{"x":2,"b":{"x":3}}}"""'
+      - type: Root
+        items:
+          - 'C(A)'
+          - |
+            Map(
+              "$variant" -> "C",
+              "next" -> Map(
+                "$variant" -> "A"
+              )
+            )
+          - '"""{"$variant":"C","next":{"$variant":"A"}}"""'
+  - name: fields and classes renamed with annotations
+    prepend: |
+      import Renames._
+    rw:
+      - type: Root
+        items:
+          - 'A'
+          - 'Map("$variant" -> "0")'
+          - '"""{"$variant":"0"}"""'
+      - type: Root
+        items:
+          - 'B(12, "hello")'
+          - |
+            Map(
+              "$variant" -> "B",
+              "x" -> 12,
+              "zzz" -> "hello"
+            )
+          - '"""{"$variant":"B","x":12,"zzz":"hello"}"""'
