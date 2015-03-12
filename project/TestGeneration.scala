@@ -1,18 +1,21 @@
-import shapeless.Typeable
-
-import sbt._
-
-import scala.collection.convert.decorateAsScala._
-
+import java.io.File
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util
 
+import ImplicitUtils._
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
+import sbt.Keys._
+import sbt._
 import shapeless.syntax.typeable._
-import ImplicitUtils._
+import shapeless.{TypeCase, Typeable}
+
+import scala.collection.convert.decorateAsScala._
+import scala.language.higherKinds
 
 sealed trait TestGenerator {
-  def generate(config: Map[String, Any], input: Any): String
+  def generate(config: Map[String, Any], variantName: String, input: Any): String
 }
 object TestGenerator {
   val Generators: Map[String, TestGenerator] = Map(
@@ -22,7 +25,34 @@ object TestGenerator {
 }
 
 object RwTestGenerator extends TestGenerator {
-  override def generate(config: Map[String, Any], input: Any) = ???
+  override def generate(config: Map[String, Any], variantName: String, input: Any): String = {
+    require(variantName != "source", "variant name cannot be 'source'")
+
+    val pattern = config("pattern").ecast[Vector[String]]
+    val sourceIndex = pattern.indexOf("source")
+    val variantIndex = pattern.indexOf(variantName)
+    require(sourceIndex >= 0, s"source index is not set")
+    require(variantIndex >= 0, s"unknown variant: $variantName")
+
+    input.ecast[Vector[Any]].map { check =>
+      val (argType, sourceArg0, expectedArg0) = check match {
+        case `Map[String, Any]`(m) =>
+          val items = m("items").ecast[Vector[String]]
+          (m.get("type").ecast[Option[String]], items(sourceIndex), items(variantIndex))
+        case `Vector[Any]`(c) =>
+          (None, c(sourceIndex).ecast[String], c(variantIndex).ecast[String])
+      }
+      val (sourceArg, expectedArg) = (sourceArg0.trim, expectedArg0.trim)
+      val invocation = s"testRW${argType.fold("")(t => s"[$t]")}"
+      def tooLong(s: String) = s.contains("\n") || s.length > 45
+      if (tooLong(sourceArg) || tooLong(expectedArg))
+        s"""|$invocation(
+            |${Strings.reindent(sourceArg, 2)},
+            |${Strings.reindent(expectedArg, 2)}
+            |)""".stripMargin
+      else s"$invocation($sourceArg, $expectedArg)"
+    }.mkString("\n")
+  }
 }
 
 case class TestCase(name: String,
@@ -59,7 +89,7 @@ object TestGeneration {
     }.toVector
   }
 
-  def parseGlobal(root: Any): Map[String, Map[String, Any]] = root.ecast
+  def parseGlobal(root: Any): Map[String, Map[String, Any]] = root.ecast[Map[String, Map[String, Any]]]
 
   def parseDefinition(name: String, root: Any): TestDefinition = {
     val m = root.ecast[Map[String, Any]]
@@ -74,11 +104,11 @@ object TestGeneration {
     )
   }
 
-  def loadDefinitions(projectDir: File): Vector[TestDefinition] = {
+  def loadDefinitions(testsDir: File): Vector[TestDefinition] = {
     val yaml = new Yaml(new SafeConstructor)
-    (projectDir / "tests").get
+    (testsDir ** "*.yml").get
       .map(_.toPath)
-      .map(p => p.getFileName -> Files.readAllLines(p).asScala.mkString("\n"))
+      .map(p => p.getFileName -> Files.readAllLines(p, StandardCharsets.UTF_8).asScala.mkString("\n"))
       .map { case (n, f) => n.toString.split("\\.")(0) -> YamlUtils.convertTree(yaml.load(f)) }
       .map { case (n, y) => parseDefinition(n, y) }
       .toVector
@@ -86,39 +116,53 @@ object TestGeneration {
 
   case class EvaluatedDefinition(projectName: String, fileName: String, packageName: String, body: String)
 
-  def evaluateDefinition(definition: TestDefinition): Vector[EvaluatedDefinition] = {
-    definition.variants.map { variant =>
+  def evaluateDefinitionIn(projectName: String, definition: TestDefinition): EvaluatedDefinition = {
+    definition.variants.find(_.targetProject == projectName).map { variant =>
       val projectName = variant.targetProject
       val fileName = definition.filePattern.interpolate(Map("name" -> variant.context("name")))
       val packageName = variant.context("package")
       val body = definition.template.interpolate(variant.context + ("cases" -> runGenerators(definition, variant)))
       EvaluatedDefinition(projectName, fileName, packageName, body)
-    }
+    }.getOrElse(throw new IllegalArgumentException(s"Unknown project name: $projectName"))
   }
 
   def runGenerators(definition: TestDefinition, variant: TestVariant): String = {
     val generatedTests = definition.cases.map(runGenerators(definition, variant, _))
-    generatedTests.map(reindent(_, definition.indent)).mkString("\n\n")
+    generatedTests.map(Strings.reindent(_, definition.indent)).mkString("\n\n")
   }
 
   def runGenerators(definition: TestDefinition, variant: TestVariant, testCase: TestCase): String = {
-    testCase.items.toVector.map {
+    val body = testCase.items.toVector.map {
       case (k, v) =>
         val gen = TestGenerator.forName(k)
-    }
-    ???
+        val (moreConfig, items) = v match {
+          case `Map[String, Any]`(m) =>
+            (m.getOrElse("config", Map.empty).ecast[Map[String, Any]], m("input").ecast[Vector[Any]])
+          case `Vector[Any]`(c) =>
+            (Map.empty[String, Any], c)
+        }
+        gen.generate(definition.global.getOrElse(k, Map.empty) ++ moreConfig, variant.name, items)
+    }.mkString
+
+    val finalBody = Strings.reindent(testCase.prepend.fold(body)(_ + '\n' + body), 2)
+    s"""|"${testCase.name}" in {
+        |$finalBody
+        |}""".stripMargin
   }
 
-  def reindent(s: String, indent: Int): String = s  // TODO
-
-  object Keys {
-    def generatedFiles(root: File) = Def.task[Seq[File]] {
-      Vector.empty
+  def generatedFiles(sourceRoot: SettingKey[File]) = Def.task[Seq[File]] {
+    val projectId = thisProject.value.id
+    val testDefinitions = loadDefinitions((baseDirectory in ThisBuild).value / "project" / "tests")
+    testDefinitions.map(evaluateDefinitionIn(projectId, _)).map { definition =>
+      val pkg = definition.packageName.replace('.', File.separatorChar)
+      val targetFile = sourceRoot.value / pkg / definition.fileName
+      IO.write(targetFile, definition.body, IO.utf8)
+      targetFile
     }
   }
 }
 
-object Interpolation {
+object Strings {
   def interpolate(s: String, context: Map[String, Any]): String = {
     val result = new StringBuilder
     var i = 0
@@ -153,39 +197,38 @@ object Interpolation {
     }
     result.toString()
   }
+
+  def reindent(s: String, indent: Int): String = s.replaceAll("(?m)^", " " * indent)
 }
 
 object YamlUtils {
   def convertTree(root: Any): Any = root match {
-    case m: java.util.Map[Any, Any] => m.asScala.toMap.map {
+    case m: util.Map[Any @unchecked, Any @unchecked] => m.asScala.toMap.map {
       case (k, v) => convertTree(k) -> convertTree(v)
     }
-    case s: java.util.Set[Any] => s.asScala.toSet.map(convertTree)
-    case c: java.util.List[Any] => c.asScala.toVector.map(convertTree)
+    case s: util.Set[Any @unchecked] => s.asScala.toSet.map(convertTree)
+    case c: util.List[Any @unchecked] => c.asScala.toVector.map(convertTree)
     case n: Int => n
     case n: Long => n
     case n: Double => n
+    case s: String => s
   }
 }
 
 object ImplicitUtils {
+  val `Map[String, Any]` = TypeCase[Map[String, Any]]
+  val `Vector[Any]` = TypeCase[Vector[Any]]
+
   implicit class StringExt(val s: String) extends AnyVal {
-    def interpolate(context: Map[String, Any]): String = Interpolation.interpolate(s, context)
+    def interpolate(context: Map[String, Any]): String = Strings.interpolate(s, context)
   }
 
-  implicit class AnyExt[T: Typeable: Manifest](val t: T) extends AnyVal {
+  implicit class AnyExt[T: Manifest](val t: T) {
     def ecast[U: Typeable: Manifest]: U = t.cast[U].getOrElse(
       throw new ClassCastException(s"Cannot cast ${manifest[T]} to ${manifest[U]}")
     )
 
-    def mcast[A: Typeable: Manifest, B: Typeable: Manifest]: Map[A, B] = t match {
-      case m: java.util.Map[_, _] => m.asScala.toMap.ecast[Map[A, B]]
-    }
-
-    def vcast[U: Typeable: Manifest]: Vector[U] = t match {
-      case c: java.util.Collection[_] => c.asScala.toVector.ecast[Vector[U]]
-    }
-
     def |>[U](f: T => U): U = f(t)
   }
+
 }

@@ -112,7 +112,9 @@ lazy val core = project
       IO.write(outFile, generatedSource, IO.utf8)
 
       Seq(outFile)
-    }
+    },
+
+    sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue
   )
 
 lazy val jawn = project
@@ -120,6 +122,8 @@ lazy val jawn = project
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle-backend-jawn",
+
+    sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
 
     libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
       "org.spire-math" %% "jawn-parser" % "0.7.2"

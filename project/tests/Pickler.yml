@@ -12,11 +12,11 @@ template: |
     def testRW[T: Reader: Writer](t: T, a: ${targetType}): Unit = {
       val s = ${write}(t)
       s shouldEqual a
-      val u = ${read}(s)
+      val u = ${read}[T](s)
       u shouldEqual t
     }
 
-    "A ${lowerName} pickler" - {
+    "A ${descriptiveName} pickler" - {
       "should serialize and deserialize" - {
   ${cases}
       }
@@ -26,7 +26,7 @@ indent: 6
 variants:
   collections:
     name: Collections
-    lowerName: collections
+    descriptiveName: collections
     write: write
     read: read
     targetType: Any
@@ -34,8 +34,8 @@ variants:
     picklerClass: CollectionsPickler
     targetProject: core
   json:
-    name: JSON
-    lowerName: JSON
+    name: Json
+    descriptiveName: JSON
     write: writeString
     read: readString
     targetType: String
@@ -44,7 +44,7 @@ variants:
     targetProject: jawn
 global:
   rw:
-    mapping:
+    pattern:
       - source
       - collections
       - json
