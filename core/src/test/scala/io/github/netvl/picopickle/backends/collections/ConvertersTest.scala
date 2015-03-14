@@ -1,10 +1,12 @@
 package io.github.netvl.picopickle.backends.collections
 
+import collection.mutable
+
 import org.scalatest.{FreeSpec, ShouldMatchers}
 
 import shapeless._
 
-import scala.collection.immutable.{TreeMap, TreeSet}
+import collection.immutable.{ListSet, TreeMap, TreeSet}
 
 object ConvertersTest {
   object ComplexObjects {
@@ -194,6 +196,47 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         val t3 = Map[String, Any]("a" -> true, "b" -> Vector(1))
         mm.isDefinedAt(t3) shouldBe false
         mt.isDefinedAt(t3) shouldBe false
+      }
+
+      "autoconverted classes" in {
+        import ComplexObjects._
+
+        val m =
+          {
+            (k: String, vs: mutable.LinkedHashSet[A]) => k :: vs :: HNil
+          }.tupled >> obj(
+            "k" -> str ::
+            "vs" -> arr.as[mutable.LinkedHashSet].of(converters.value[A]) ::
+            HNil
+          ) >> {
+            case k :: vs :: HNil => (k, vs)
+          }
+
+        val t1 = Map(
+          "k" -> "hello",
+          "vs" -> Vector(
+            Map(
+              "x" -> 10,
+              "y" -> "hello",
+              "z" -> Map(
+                "a" -> true,
+                "b" -> 42.4
+              )
+            ),
+            Map(
+              "x" -> 11,
+              "y" -> "bye",
+              "z" -> Map(
+                "a" -> false,
+                "b" -> -42.4
+              )
+            )
+          )
+        )
+        val r1 = ("hello", mutable.LinkedHashSet(A(10, "hello", B(true, 42.4)), A(11, "bye", B(false, -42.4))))
+        m.isDefinedAt(t1) shouldBe true
+        m.fromBackend(t1) shouldEqual r1
+        m.toBackend(r1) shouldEqual t1
       }
     }
   }

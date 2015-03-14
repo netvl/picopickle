@@ -56,6 +56,8 @@ trait CollectionWriters {
   implicit def vectorWriter[T: Writer]: Writer[imm.Vector[T]] = mkIterableWriter[T, imm.Vector]
   implicit def listWriter[T: Writer]: Writer[imm.List[T]] = mkIterableWriter[T, imm.List]
   implicit def streamWriter[T: Writer]: Writer[imm.Stream[T]] = mkIterableWriter[T, imm.Stream]
+  implicit def listSetWriter[T: Writer]: Writer[imm.ListSet[T]] = mkIterableWriter[T, imm.ListSet]
+  implicit def treeSetWriter[T: Writer: Ordering]: Writer[imm.TreeSet[T]] = mkIterableWriter[T, imm.TreeSet]
 
   implicit def immHashSetWriter[T: Writer]: Writer[imm.HashSet[T]] = mkIterableWriter[T, imm.HashSet]
   implicit def mutHashSetWriter[T: Writer]: Writer[mut.HashSet[T]] = mkIterableWriter[T, mut.HashSet]
@@ -63,6 +65,7 @@ trait CollectionWriters {
   implicit def bufferWriter[T: Writer]: Writer[mut.Buffer[T]] = mkIterableWriter[T, mut.Buffer]
   implicit def arrayBufferWriter[T: Writer]: Writer[mut.ArrayBuffer[T]] = mkIterableWriter[T, mut.ArrayBuffer]
   implicit def linkedListWriter[T: Writer]: Writer[mut.LinkedList[T]] = mkIterableWriter[T, mut.LinkedList]
+  implicit def linkedHashSetWriter[T: Writer]: Writer[mut.LinkedHashSet[T]] = mkIterableWriter[T, mut.LinkedHashSet]
 
   implicit def mapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[coll.Map[A, B]] = mkMapWriter[A, B, coll.Map]
   implicit def immMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.Map[A, B]] = mkMapWriter[A, B, imm.Map]
@@ -71,8 +74,10 @@ trait CollectionWriters {
   implicit def immHashMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.HashMap[A, B]] = mkMapWriter[A, B, imm.HashMap]
   implicit def mutHashMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
 
-  implicit def immTreeMapWriter[A: Writer: Ordering, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
-  implicit def immListMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
+  implicit def treeMapWriter[A: Writer: Ordering, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
+  implicit def listMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
+
+  implicit def linkedHashMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, rab: Writer[(A, B)]): Writer[mut.LinkedHashMap[A, B]] = mkMapWriter[A, B, mut.LinkedHashMap]
 
   implicit def arrayWriter[T: Writer]: Writer[Array[T]] = Writer {
     case arr => iterableWriter[T].write(arr)
@@ -128,13 +133,16 @@ trait CollectionReaders {
   implicit def vectorReader[T: Reader]: Reader[imm.Vector[T]] = mkIterableReader[T, imm.Vector]
   implicit def listReader[T: Reader]: Reader[imm.List[T]] = mkIterableReader[T, imm.List]
   implicit def streamReader[T: Reader]: Reader[imm.Stream[T]] = mkIterableReader[T, imm.Stream]
-  
+  implicit def listSetReader[T: Reader]: Reader[imm.ListSet[T]] = mkIterableReader[T, imm.ListSet]
+  implicit def treeSetReader[T: Reader: Ordering]: Reader[imm.TreeSet[T]] = mkIterableReader[T, imm.TreeSet]
+
   implicit def immHashSetReader[T: Reader]: Reader[imm.HashSet[T]] = mkIterableReader[T, imm.HashSet]
   implicit def mutHashSetReader[T: Reader]: Reader[mut.HashSet[T]] = mkIterableReader[T, mut.HashSet]
   
   implicit def bufferReader[T: Reader]: Reader[mut.Buffer[T]] = mkIterableReader[T, mut.Buffer]
   implicit def arrayBufferReader[T: Reader]: Reader[mut.ArrayBuffer[T]] = mkIterableReader[T, mut.ArrayBuffer]
   implicit def linkedListReader[T: Reader]: Reader[mut.LinkedList[T]] = mkIterableReader[T, mut.LinkedList]
+  implicit def linkedHashSetReader[T: Reader]: Reader[mut.LinkedHashSet[T]] = mkIterableReader[T, mut.LinkedHashSet]
 
   implicit def mapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[coll.Map[A, B]] = mkMapReader[A, B, coll.Map]
   implicit def immMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.Map[A, B]] = mkMapReader[A, B, imm.Map]
@@ -143,8 +151,10 @@ trait CollectionReaders {
   implicit def immHashMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.HashMap[A, B]] = mkMapReader[A, B, imm.HashMap]
   implicit def mutHashMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
 
-  implicit def immTreeMapReader[A: Reader: Ordering, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
-  implicit def immListMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
+  implicit def treeMapReader[A: Reader: Ordering, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
+  implicit def listMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
+
+  implicit def linkedHashMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[mut.LinkedHashMap[A, B]] = mkMapReader[A, B, mut.LinkedHashMap]
 
   implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader {
     case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
