@@ -59,8 +59,8 @@ object JsonAst {
     override def makeNumber(n: Number): BNumber = JsonNumber(n.doubleValue())
     override def getNumber(value: BValue): Option[BNumber] = value.cast[JsonNumber]
 
-    override def makeNumberAccurately(n: Number): BValue = doubleOrStringToBackend(n)
-    override def fromNumberAccurately(value: BValue): Number = doubleOrStringFromBackend(value)
+    override def makeNumberAccurately(n: Number): BValue = numberToBackendNumberOrString(n)
+    override def fromNumberAccurately(value: BValue): Number = doubleOrStringFromBackendNumberOrString(value)
 
     override def fromBoolean(bool: BBoolean): Boolean = bool match {
       case JsonTrue => true

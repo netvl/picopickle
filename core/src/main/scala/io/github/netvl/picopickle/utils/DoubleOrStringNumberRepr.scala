@@ -7,7 +7,7 @@ trait DoubleOrStringNumberRepr {
 
   protected final val MaxLongInDouble: Long = 1L << 53  // Double has 53 bits of precision
 
-  protected def doubleOrStringToBackend(value: Any): BValue = value match {
+  protected def numberToBackendNumberOrString(value: Any): BValue = value match {
     case x @ Double.PositiveInfinity => makeString(x.toString)
     case x @ Double.NegativeInfinity => makeString(x.toString)
     case x: Double if x.isNaN => makeString(x.toString)
@@ -19,7 +19,7 @@ trait DoubleOrStringNumberRepr {
     case x: Number => makeNumber(x)
   }
 
-  protected def doubleOrStringFromBackend(value: BValue): Number = value match {
+  protected def doubleOrStringFromBackendNumberOrString(value: BValue): Number = value match {
     case Extract.Number(n) => n
     case Extract.String(s)
       if s == Double.PositiveInfinity.toString ||

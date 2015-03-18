@@ -118,6 +118,29 @@ trait Backend {
       def unapply(value: BValue): Option[BNull] = Backend.this.getNull(value)
     }
   }
+
+  object BackendConversionImplicits {
+    implicit class MapToBackendExt(val m: Map[String, BValue]) {
+      def toBackend: BObject = makeObject(m)
+    }
+
+    implicit class VectorToBackendExt(val v: Vector[BValue]) {
+      def toBackend: BArray = makeArray(v)
+    }
+
+    implicit class StringToBackendExt(val s: String) {
+      def toBackend: BString = makeString(s)
+    }
+
+    implicit class NumberLikeToBackendExt[N](val n: N)(implicit conv: N => Number) {
+      def toBackend: BNumber = makeNumber(n)
+      def toBackendAccurately: BValue = makeNumberAccurately(n)
+    }
+
+    implicit class BooleanToBackendExt(val b: Boolean) {
+      def toBackend: BBoolean = makeBoolean(b)
+    }
+  }
 }
 
 

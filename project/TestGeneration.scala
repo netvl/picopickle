@@ -116,14 +116,18 @@ object TestGeneration {
 
   case class EvaluatedDefinition(projectName: String, fileName: String, packageName: String, body: String)
 
-  def evaluateDefinitionIn(projectName: String, definition: TestDefinition): EvaluatedDefinition = {
+  def evaluateDefinitionIn(projectName: String, streams: TaskStreams, definition: TestDefinition): Option[EvaluatedDefinition] = {
     definition.variants.find(_.targetProject == projectName).map { variant =>
       val projectName = variant.targetProject
       val fileName = definition.filePattern.interpolate(Map("name" -> variant.context("name")))
       val packageName = variant.context("package")
       val body = definition.template.interpolate(variant.context + ("cases" -> runGenerators(definition, variant)))
       EvaluatedDefinition(projectName, fileName, packageName, body)
-    }.getOrElse(throw new IllegalArgumentException(s"Unknown project name: $projectName"))
+    } <| {
+      case None =>
+        streams.log.warn(s"No variant of test ${definition.name}.yml for project $projectName was found")
+      case _ =>
+    }
   }
 
   def runGenerators(definition: TestDefinition, variant: TestVariant): String = {
@@ -153,7 +157,7 @@ object TestGeneration {
   def generatedFiles(sourceRoot: SettingKey[File]) = Def.task[Seq[File]] {
     val projectId = thisProject.value.id
     val testDefinitions = loadDefinitions((baseDirectory in ThisBuild).value / "project" / "tests")
-    testDefinitions.map(evaluateDefinitionIn(projectId, _)).map { definition =>
+    testDefinitions.flatMap(evaluateDefinitionIn(projectId, streams.value, _)).map { definition =>
       val pkg = definition.packageName.replace('.', File.separatorChar)
       val targetFile = sourceRoot.value / pkg / definition.fileName
       IO.write(targetFile, definition.body, IO.utf8)
@@ -229,6 +233,8 @@ object ImplicitUtils {
     )
 
     def |>[U](f: T => U): U = f(t)
+
+    def <|[U](f: T => U): T = { f(t); t }
   }
 
 }
