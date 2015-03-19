@@ -5,6 +5,7 @@ template: |
   import scala.collection.immutable.ListMap
   import org.scalatest.{FreeSpec, ShouldMatchers}
   import io.github.netvl.picopickle.Fixtures._
+  import io.github.netvl.picopickle.DefaultValue
 
   class ${name}PicklerTest extends FreeSpec with ShouldMatchers {
     import ${picklerClass}._

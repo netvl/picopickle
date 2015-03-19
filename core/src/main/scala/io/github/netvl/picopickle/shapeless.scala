@@ -7,6 +7,8 @@ import scala.language.experimental.macros
 import scala.annotation.StaticAnnotation
 import scala.reflect.macros.whitebox
 
+import io.github.netvl.picopickle.SourceTypeTag.@@@
+
 class key(k: String) extends StaticAnnotation
 
 trait SealedTraitDiscriminatorComponent {
@@ -161,17 +163,31 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
 trait LowerPriorityShapelessReaders2 {
   this: BackendComponent with TypesComponent =>
 
-  implicit def genericReader[T, R](implicit g: LabelledGeneric.Aux[T, R], rr: Lazy[Reader[R]]): Reader[T] =
-    Reader { case bv => g.from(rr.value.read(bv)) }
+  implicit def genericReader[T, R, RT](implicit g: LabelledGeneric.Aux[T, R],
+                                       rt: TagWithType.Aux[R, T, RT],
+                                       rr: Lazy[Reader[RT]]): Reader[T] =
+    Reader {
+      case bv =>
+        g.from(rt.unwrap(rr.value.read(bv)))
+    }
 }
 
 trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
   this: BackendComponent with TypesComponent =>
   
-  implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
-                                               vr: Lazy[Reader[V]]): Reader[FieldType[K, V]] =
+//  implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
+//                                               vr: Lazy[Reader[V]]): Reader[FieldType[K, V]] =
+//    Reader {
+//      case backend.Get.Object(v) => field[K](vr.value.read(backend.getObjectKey(v, kw.value.name).get))
+//    }
+
+  implicit def fieldTypeReaderTagged[K <: Symbol, V, T](implicit kw: Witness.Aux[K],
+                                                        vr: Lazy[Reader[V]],
+                                                        dv: DefaultValue.Aux[T, K, V]): Reader[FieldType[K, V] @@@ T] =
     Reader {
-      case backend.Get.Object(v) => field[K](vr.value.read(backend.getObjectKey(v, kw.value.name).get))
+      case backend.Get.Object(v) =>
+        val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value)
+        SourceTypeTag[T].attachTo(field[K](value.getOrElse(throw new IllegalStateException("Can't obtain value"))))
     }
 }
 
