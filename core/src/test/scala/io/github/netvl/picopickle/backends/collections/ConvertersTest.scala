@@ -26,7 +26,7 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         `null`.isDefinedAt(makeNull) shouldBe true
         (`null`.fromBackend(makeNull): Any) shouldEqual (null: Any)
 
-        `null`.isDefinedAt(makeString("something")) shouldBe false
+        `null`.isDefinedAt("something".toBackend) shouldBe false
 
         `null`.toBackend(null) shouldEqual (makeNull: Any)
       }
