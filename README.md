@@ -267,7 +267,9 @@ Changelog
 * Support for recursive types
 * Added converters
 * Improved API for custom serializers
-* Added renaming support for fields and sealed trait variants
+* Added support for renaming fields and sealed trait variants
+* Added support for default values in case classes
+* Added test generators
 * Started adding tests
 
 ### 0.0.2
