@@ -3,22 +3,25 @@ package io.github.netvl.picopickle
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 import shapeless._
-import shapeless.labelled._
 
 import io.github.netvl.picopickle.SourceTypeTag.@@@
 
-trait DefaultValue {
-  type T
-  type K
-  type V
-  def value: Option[V]
-}
+trait DefaultValuesComponent {
 
-object DefaultValue {
-  type Aux[T0, K0, V0] = DefaultValue { type T = T0; type K = K0; type V = V0 }
-  type AuxKV[K0, V0] = DefaultValue { type K = K0; type V = V0 }
-  implicit def materializeDefaultValue[T, K <: Symbol, V]: DefaultValue.Aux[T, K, V] =
+  // I have *no* idea why this trait and its materialization does not work outside of a cake component
+  // without explicit imports o_O
+  trait DefaultValue {
+    type T
+    type K
+    type V
+    def value: Option[V]
+  }
+
+  object DefaultValue {
+    type Aux[T0, K0, V0] = DefaultValue { type T = T0; type K = K0; type V = V0 }
+    implicit def materializeDefaultValue[T, K <: Symbol, V]: DefaultValue.Aux[T, K, V] =
     macro DefaultValueMacros.materializeDefaultValueImpl[T, K, V]
+  }
 }
 
 class DefaultValueMacros(override val c: whitebox.Context) extends SingletonTypeMacros(c) {
@@ -101,22 +104,6 @@ object TagWithType {
       type Out = (H @@@ U) :: O
       def unwrap(source: (H @@@ U) :: O): H :: T = source match {
         case h :: t => h :: tt.unwrap(t)
-      }
-    }
-
-  implicit def tagWithTypeCNil[U]: TagWithType.Aux[CNil, U, CNil] = new TagWithType[CNil, U] {
-    type Out = CNil
-    def unwrap(source: CNil): CNil = throw new IllegalStateException("Unwrapping CNil")
-  }
-
-  implicit def tagWithTypeCCons[U, H, K, T <: Coproduct, TO <: Coproduct](implicit th: TagWithType[H, U],
-                                                                          tt: TagWithType.Aux[T, U, TO])
-      : TagWithType.Aux[FieldType[K, H] :+: T, U, FieldType[K, th.Out] :+: TO] =
-    new TagWithType[FieldType[K, H] :+: T, U] {
-      type Out = FieldType[K, th.Out] :+: TO
-      def unwrap(source: FieldType[K, th.Out] :+: TO): FieldType[K, H] :+: T = source match {
-        case Inl(h) => Inl[FieldType[K, H], T](field[K](th.unwrap(h)))
-        case Inr(t) => Inr(tt.unwrap(t))
       }
     }
 }

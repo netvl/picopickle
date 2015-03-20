@@ -163,9 +163,13 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
 trait LowerPriorityShapelessReaders2 {
   this: BackendComponent with TypesComponent =>
 
-  implicit def genericReader[T, R, RT](implicit g: LabelledGeneric.Aux[T, R],
-                                       rt: TagWithType.Aux[R, T, RT],
-                                       rr: Lazy[Reader[RT]]): Reader[T] =
+  implicit def genericCoproductReader[T, R <: Coproduct](implicit g: LabelledGeneric.Aux[T, R],
+                                                         rr: Lazy[Reader[R]]): Reader[T] =
+    Reader { case bv => g.from(rr.value.read(bv)) }
+
+  implicit def genericHListReader[T, R <: HList, RT <: HList](implicit g: LabelledGeneric.Aux[T, R],
+                                                              rt: TagWithType.Aux[R, T, RT],
+                                                              rr: Lazy[Reader[RT]]): Reader[T] =
     Reader {
       case bv =>
         g.from(rt.unwrap(rr.value.read(bv)))
@@ -173,7 +177,7 @@ trait LowerPriorityShapelessReaders2 {
 }
 
 trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
-  this: BackendComponent with TypesComponent =>
+  this: BackendComponent with TypesComponent with DefaultValuesComponent =>
   
 //  implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
 //                                               vr: Lazy[Reader[V]]): Reader[FieldType[K, V]] =
@@ -192,12 +196,16 @@ trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
 }
 
 trait ShapelessReaders extends LowerPriorityShapelessReaders {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent with DefaultValuesComponent =>
   
-  implicit def optionFieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
-                                                     vr: Lazy[Reader[V]]): Reader[FieldType[K, Option[V]]] =
+  implicit def optionFieldTypeReaderTagged[K <: Symbol, V, T](implicit kw: Witness.Aux[K],
+                                                              vr: Lazy[Reader[V]],
+                                                              dv: DefaultValue.Aux[T, K, V])
+      : Reader[FieldType[K, Option[V]] @@@ T] =
     Reader {
-      case backend.Get.Object(v) => field[K](backend.getObjectKey(v, kw.value.name).map(vr.value.read))
+      case backend.Get.Object(v) =>
+        val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value)
+        SourceTypeTag[T].attachTo(field[K](value))
     }
 
   implicit def recordHeadReader[H, T <: HList](implicit hr: Lazy[Reader[H]], tr: Lazy[Reader[T]],
@@ -233,5 +241,5 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
 }
 
 trait ShapelessReaderWritersComponent extends ShapelessReaders with ShapelessWriters {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent with DefaultValuesComponent =>
 }

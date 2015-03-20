@@ -35,15 +35,19 @@ object RwTestGenerator extends TestGenerator {
     require(variantIndex >= 0, s"unknown variant: $variantName")
 
     input.ecast[Vector[Any]].map { check =>
-      val (argType, sourceArg0, expectedArg0) = check match {
+      val (kind, argType, sourceArg0, expectedArg0) = check match {
         case `Map[String, Any]`(m) =>
           val items = m("items").ecast[Vector[String]]
-          (m.get("type").ecast[Option[String]], items(sourceIndex), items(variantIndex))
+          (m.getOrElse("kind", "rw").ecast[String], m.get("type").ecast[Option[String]], items(sourceIndex), items(variantIndex))
         case `Vector[Any]`(c) =>
-          (None, c(sourceIndex).ecast[String], c(variantIndex).ecast[String])
+          ("rw", None, c(sourceIndex).ecast[String], c(variantIndex).ecast[String])
       }
       val (sourceArg, expectedArg) = (sourceArg0.trim, expectedArg0.trim)
-      val invocation = s"testRW${argType.fold("")(t => s"[$t]")}"
+      val finalArgType = argType.fold("")(t => s"[$t]")
+      val invocation = kind match {
+        case "rw" => s"testRW$finalArgType"
+        case "r" => s"testR$finalArgType"
+      }
       def tooLong(s: String) = s.contains("\n") || s.length > 45
       if (tooLong(sourceArg) || tooLong(expectedArg))
         s"""|$invocation(

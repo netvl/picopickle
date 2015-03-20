@@ -28,4 +28,9 @@ object Fixtures {
     @key("0") case object A extends Root
     case class B(x: Int, @key("zzz") y: String) extends Root
   }
+
+  object Defaults {
+    sealed trait Root
+    case class A(x: Int, name: String = "me", enabled: Boolean = false) extends Root
+  }
 }

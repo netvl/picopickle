@@ -5,7 +5,6 @@ template: |
   import scala.collection.immutable.ListMap
   import org.scalatest.{FreeSpec, ShouldMatchers}
   import io.github.netvl.picopickle.Fixtures._
-  import io.github.netvl.picopickle.DefaultValue
 
   class ${name}PicklerTest extends FreeSpec with ShouldMatchers {
     import ${picklerClass}._
@@ -14,6 +13,11 @@ template: |
       val s = ${write}(t)
       s shouldEqual a
       val u = ${read}[T](s)
+      u shouldEqual t
+    }
+
+    def testR[T: Reader](t: T, a: ${targetType}): Unit = {
+      val u = ${read}[T](a)
       u shouldEqual t
     }
 
@@ -211,3 +215,23 @@ cases:
               "zzz" -> "hello"
             )
           - '"""{"$variant":"B","x":12,"zzz":"hello"}"""'
+  - name: case classes with default values
+    prepend: |
+      import Defaults._
+    rw:
+      - kind: r
+        items:
+          - 'A(10)'
+          - 'Map("x" -> 10)'
+          - '"""{"x":10}"""'
+      - kind: r
+        items:
+          - 'A(10, "wow")'
+          - 'Map("x" -> 10, "name" -> "wow")'
+          - '"""{"x":10,"name":"wow"}"""'
+      - kind: r
+        type: Root
+        items:
+          - 'A(10, enabled = true)'
+          - 'Map("$variant" -> "A", "x" -> 10, "enabled" -> true)'
+          - '"""{"$variant":"A","x":10,"enabled":true}"""'
