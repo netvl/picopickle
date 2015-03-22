@@ -5,7 +5,7 @@ import shapeless.labelled._
 
 import scala.language.experimental.macros
 import scala.annotation.StaticAnnotation
-import scala.reflect.macros.whitebox
+import reflect.macros.Context
 
 import io.github.netvl.picopickle.SourceTypeTag.@@@
 
@@ -24,8 +24,15 @@ trait AnnotationSupportingSymbolicLabellingComponent {
     macro AnnotationSupportSymbolicLabelling.mkDefaultSymbolicLabellingImpl[T]
 }
 
+object AnnotationSupportSymbolicLabelling {
+  def inst(c: Context) = new AnnotationSupportSymbolicLabelling[c.type](c)
+
+  def mkDefaultSymbolicLabellingImpl[T: c.WeakTypeTag](c: Context): c.Expr[DefaultSymbolicLabelling[T]] =
+    c.Expr[DefaultSymbolicLabelling[T]](inst(c).mkDefaultSymbolicLabellingImpl[T])
+}
+
 // Extracted almost entirely from shapeless and tweaked to support custom annotations
-class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledMacros(cc) {
+class AnnotationSupportSymbolicLabelling[C <: Context](cc: C) extends LabelledMacros(cc) {
   import c.universe._
 
   override def mkDefaultSymbolicLabellingImpl[T](implicit tTag: WeakTypeTag[T]): Tree = {
@@ -52,12 +59,12 @@ class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledM
     """
   }
 
-  def isKeyAnnotation(ann: Annotation): Boolean = ann.tree.tpe == typeOf[key]
+  def isKeyAnnotation(ann: Annotation): Boolean = ann.tpe =:= typeOf[key]
 
   def obtainKeyOfSym(sym: Symbol) = {
     sym.annotations
       .find(isKeyAnnotation)
-      .flatMap(_.tree.children.tail.headOption)
+      .flatMap(_.scalaArgs.headOption)
       .collect { case Literal(Constant(s)) => s.toString }
       .getOrElse(nameAsString(sym.name))
   }
@@ -65,19 +72,19 @@ class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledM
   def obtainKeyOfType(tpe: Type): String = obtainKeyOfSym(tpe.typeSymbol)
 
   def obtainKeyOfField(sym: Symbol, tpe: Type): String = {
-    tpe.decls
-      .collect { case d if d.name == termNames.CONSTRUCTOR => d.asMethod }
-      .flatMap(_.paramLists.flatten)
+    tpe.declarations
+      .collect { case d if d.name == nme.CONSTRUCTOR => d.asMethod }
+      .flatMap(_.paramss.flatten)
       .filter(_.name == sym.name)  // don't know if this is a good idea but I see no other way
       .flatMap(_.annotations)
       .find(isKeyAnnotation)
-      .flatMap(_.tree.children.tail.headOption)
+      .flatMap(_.scalaArgs.headOption)
       .collect { case Literal(Constant(s)) => s.toString }
       .getOrElse(nameAsString(sym.name))
   }
 
   def fieldSymbolsOf(tpe: Type): List[TermSymbol] =
-    tpe.decls.toList collect {
+    tpe.declarations.toList collect {
       case sym: TermSymbol if isCaseAccessorLike(sym) => sym
     }
 }

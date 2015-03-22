@@ -1,7 +1,7 @@
 package io.github.netvl.picopickle
 
 import scala.language.experimental.macros
-import scala.reflect.macros.whitebox
+import reflect.macros.Context
 import shapeless._
 
 import io.github.netvl.picopickle.SourceTypeTag.@@@
@@ -20,36 +20,43 @@ trait DefaultValuesComponent {
   object DefaultValue {
     type Aux[T0, K0, V0] = DefaultValue { type T = T0; type K = K0; type V = V0 }
     implicit def materializeDefaultValue[T, K <: Symbol, V]: DefaultValue.Aux[T, K, V] =
-    macro DefaultValueMacros.materializeDefaultValueImpl[T, K, V]
+      macro DefaultValueMacros.materializeDefaultValueImpl[DefaultValue.Aux[T, K, V], T, K, V]
   }
 }
 
-class DefaultValueMacros(override val c: whitebox.Context) extends SingletonTypeMacros(c) {
+object DefaultValueMacros {
+  def inst(c: Context) = new DefaultValueMacros[c.type](c)
+
+  def materializeDefaultValueImpl[S: c.WeakTypeTag, T: c.WeakTypeTag, K: c.WeakTypeTag, V: c.WeakTypeTag](c: Context): c.Expr[S] =
+    c.Expr[S](inst(c).materializeDefaultValueImpl[T, K, V])
+}
+
+class DefaultValueMacros[C <: Context](override val c: C) extends SingletonTypeMacros[C](c) {
   import c.universe._
 
   def materializeDefaultValueImpl[T: WeakTypeTag, K: WeakTypeTag, V: WeakTypeTag]: Tree = {
-    val kTpe = weakTypeOf[K].dealias
+    val kTpe = weakTypeOf[K].normalize
     val fieldName = kTpe match {
       case SingletonSymbolType(s) => s
       case _ => c.abort(c.enclosingPosition, s"Type $kTpe is not a tagged symbol type")
     }
 
     val tTpe = weakTypeOf[T]
-    val tCompanionSym = tTpe.typeSymbol.companion
+    val tCompanionSym = tTpe.typeSymbol.companionSymbol
 
     if (tCompanionSym == NoSymbol)
       c.abort(c.enclosingPosition, s"No companion symbol is available for type $tTpe")
 
-    val applySym = tCompanionSym.typeSignature.decl(TermName("apply")).asMethod
+    val applySym = tCompanionSym.typeSignature.declaration(newTermName("apply")).asMethod
     if (applySym == NoSymbol)
       c.abort(c.enclosingPosition, s"Companion symbol for type $tTpe does not have apply method")
 
     val vTpe = weakTypeOf[V]
 
-    val defaultMethodName = applySym.paramLists.headOption.flatMap { argSyms =>
+    val defaultMethodName = applySym.paramss.headOption.flatMap { argSyms =>
       argSyms.map(_.asTerm).zipWithIndex.collect {
         case (p, i) if p.isParamWithDefault && p.name.toString == fieldName && p.typeSignature =:= vTpe =>
-          TermName(s"apply$$default$$${i+1}")
+          newTermName(s"apply$$default$$${i+1}")
       }.headOption
     }
 
@@ -58,7 +65,7 @@ class DefaultValueMacros(override val c: whitebox.Context) extends SingletonType
       case None => q"_root_.scala.None"
     }
 
-    val generatedClassName = TypeName(s"DefaultValue$$${tTpe.typeSymbol.name}$$$fieldName")
+    val generatedClassName = newTypeName(s"DefaultValue$$${tTpe.typeSymbol.name}$$$fieldName")
     q"""
       {
         final class $generatedClassName extends DefaultValue {
