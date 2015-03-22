@@ -1,5 +1,3 @@
-crossScalaVersions := Seq("2.10.4", "2.11.6")
-
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
   version := "0.1.0",
@@ -31,29 +29,16 @@ val commonSettings = bintrayPublishSettings ++ commonCommonSettings ++ Seq(
     </scm>
 )
 
-def shapelessDependency(scalaVersion: String) = scalaVersion match {
-  case v if v.startsWith("2.11") => Seq(
-    "com.chuusai" %% "shapeless" % "2.1.0"
-  )
-  case v if v.startsWith("2.10") => Seq(
-    "com.chuusai" %% "shapeless" % "2.1.0" cross CrossVersion.full,
-    compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
-  )
-  // other scala versions are unsupported
-  case v =>
-    sys.error(s"Scala version $v is not supported")
-}
+def shapelessDependency = Seq("com.chuusai" %% "shapeless" % "2.1.0")
 
-def commonDependencies(scalaVersion: String) = Seq(
-  "org.scalatest" %% "scalatest" % "2.2.0" % "test"
-) ++ shapelessDependency(scalaVersion)
+def commonDependencies = Seq("org.scalatest" %% "scalatest" % "2.2.0" % "test") ++ shapelessDependency
 
 lazy val core = project
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle-core",
 
-    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
+    libraryDependencies ++= commonDependencies ++ Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value
     ),
 
@@ -125,7 +110,7 @@ lazy val jawn = project
 
     sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
 
-    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
+    libraryDependencies ++= commonDependencies ++ Seq(
       "org.spire-math" %% "jawn-parser" % "0.7.2"
     )
   )

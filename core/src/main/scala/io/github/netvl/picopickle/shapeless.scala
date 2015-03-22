@@ -52,7 +52,7 @@ class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledM
     """
   }
 
-  def isKeyAnnotation(ann: Annotation): Boolean = ann.tree.tpe == typeOf[key]
+  def isKeyAnnotation(ann: Annotation): Boolean = ann.tree.tpe =:= typeOf[key]
 
   def obtainKeyOfSym(sym: Symbol) = {
     sym.annotations
