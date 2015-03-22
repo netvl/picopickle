@@ -101,7 +101,7 @@ object TestGeneration {
       name,
       m("file-pattern").ecast[String],
       m("template").ecast[String],
-      m("indent").ecast[Integer],
+      m("indent").ecast[Int],
       m("variants") |> parseVariants,
       m("global") |> parseGlobal,
       m("cases") |> parseCases
