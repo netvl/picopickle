@@ -1,27 +1,30 @@
-package io.github.netvl.picopickle.backends.collections
-
-import org.scalatest.{FreeSpec, ShouldMatchers}
-import shapeless._
+package io.github.netvl.picopickle
 
 import scala.collection.immutable.{TreeMap, TreeSet}
 import scala.collection.mutable
+import shapeless._
 
-object ConvertersTest {
+import org.scalatest.{FreeSpec, ShouldMatchers}
+
+object ConvertersTestBase {
   object ComplexObjects {
     case class A(x: Int, y: String, z: B)
     case class B(a: Boolean, b: Double)
   }
 }
 
-class ConvertersTest extends FreeSpec with ShouldMatchers {
-  import io.github.netvl.picopickle.backends.collections.ConvertersTest._
-  import io.github.netvl.picopickle.backends.collections.CollectionsPickler._
-  import converters._
+trait ConvertersTestBase extends FreeSpec with ShouldMatchers with DefaultPickler {
+  this: BackendComponent =>
+
   import backend._
   import BackendConversionImplicits._
+  import converters._
+  import ConvertersTestBase.ComplexObjects._
+
+  def backendName: String = "backend"
 
   "Converters" - {
-    "should convert to and from backend representation" - {
+    s"should convert to and from $backendName representation" - {
       "null" in {
         `null`.isDefinedAt(makeNull) shouldBe true
         (`null`.fromBackend(makeNull): Any) shouldEqual (null: Any)
@@ -91,7 +94,6 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
       }
 
       "complex classes" in {
-        import io.github.netvl.picopickle.backends.collections.ConvertersTest.ComplexObjects._
 
         val bc: Converter.Id[B] = unlift(B.unapply) >>> obj {
           "a" -> bool ::
@@ -118,7 +120,7 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
           "z" -> Map(
             "a" -> true.toBackend,
             "b" -> 42.4.toBackend
-          )
+          ).toBackend
         ).toBackend
 
         ac.isDefinedAt(t) shouldBe true
@@ -164,9 +166,9 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         val r3 = "too large" :: (1: Number) :: Set(true) :: HNil
         ma.isDefinedAt(c3) shouldBe true
         ma.fromBackend(c3) shouldEqual r3
-        ma.toBackend(r3) shouldEqual Vector("too large".toBackend, 1.toBackend, Vector(true).toBackend).toBackend
+        ma.toBackend(r3) shouldEqual Vector("too large".toBackend, 1.toBackend, Vector(true.toBackend).toBackend).toBackend
 
-        val c4 = Vector("incorrect types".toBackend, true.toBackend, Vector(false.toBackend).toBackend)
+        val c4 = Vector("incorrect types".toBackend, true.toBackend, Vector(false.toBackend).toBackend).toBackend
         ma.isDefinedAt(c4) shouldBe false
 
         val c5 = Vector().toBackend  // empty
@@ -181,7 +183,7 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         val mm = obj.as[Map] to num.double
         val mt = obj.as[TreeMap] to num.double
 
-        val t1 = Map.empty[String, Any].toBackend
+        val t1 = Map.empty[String, BValue].toBackend
         mm.isDefinedAt(t1) shouldBe true
         mm.fromBackend(t1) shouldBe 'empty
         mm.toBackend(Map.empty) shouldEqual t1
@@ -189,7 +191,7 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         mt.fromBackend(t1) shouldBe 'empty
         mt.toBackend(TreeMap.empty) shouldEqual t1
 
-        val t2 = Map[String, Any]("a" -> 12.3.toBackend, "b" -> 13.4.toBackend).toBackend
+        val t2 = Map[String, BValue]("a" -> 12.3.toBackend, "b" -> 13.4.toBackend).toBackend
         val s2m = Map("a" -> 12.3, "b" -> 13.4)
         val s2t = TreeMap("a" -> 12.3, "b" -> 13.4)
         mm.isDefinedAt(t2) shouldBe true
@@ -199,13 +201,12 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
         mt.fromBackend(t2) shouldEqual s2t
         mt.toBackend(s2t) shouldEqual t2
 
-        val t3 = Map[String, Any]("a" -> true.toBackend, "b" -> Vector(1.toBackend).toBackend).toBackend
+        val t3 = Map[String, BValue]("a" -> true.toBackend, "b" -> Vector(1.toBackend).toBackend).toBackend
         mm.isDefinedAt(t3) shouldBe false
         mt.isDefinedAt(t3) shouldBe false
       }
 
       "autoconverted classes" in {
-        import ComplexObjects._
 
         val m =
           {
@@ -236,7 +237,7 @@ class ConvertersTest extends FreeSpec with ShouldMatchers {
                 "a" -> false.toBackend,
                 "b" -> (-42.4).toBackend
               ).toBackend
-            )
+            ).toBackend
           ).toBackend
         ).toBackend
         val r1 = ("hello", mutable.LinkedHashSet(A(10, "hello", B(true, 42.4)), A(11, "bye", B(false, -42.4))))
