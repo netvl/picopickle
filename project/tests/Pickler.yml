@@ -108,6 +108,14 @@ cases:
       - - 'Seq("a", "b")'
         - 'Vector("a", "b")'
         - '"""["a","b"]"""'
+  - name: option to an array
+    rw:
+      - - 'Option("a")'
+        - 'Vector("a")'
+        - '"""["a"]"""'
+      - - 'None'
+        - 'Vector.empty'
+        - '"""[]"""'
   - name: map to an array of arrays
     rw:
       - - 'ListMap(1 -> 2, 3 -> 4)'
