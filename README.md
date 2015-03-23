@@ -431,7 +431,7 @@ obj {
 
 `>>>` operations employ a little of shapeless magic to convert the functions like the ones above to functions
 which consume and produce `HList`s. There is also `>>` combinator which does not use shapeless and "prepends"
-and "appends" a function of corresponding type:
+and "appends" a function of corresponding type directly:
 
 ```scala
 (A => B) >> Converter[B, C] >> (C => D)  ->  Converter[A, D]
