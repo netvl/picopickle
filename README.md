@@ -247,6 +247,37 @@ methods can be divided into three groups:
 
 The last group of methods return `Option[<corresponding type>]` because they are partial in their nature.
 
+In order to create a custom backend you need to implement `Backend` trait first:
+
+```scala
+object MyBackend extends Backend {
+  type BValue = ...
+  ...
+}
+```
+
+Then you need to create a cake component for this backend; this component must implement `BackendComponent` trait:
+
+```scala
+trait MyBackendComponent extends BackendComponent {
+  override val backend = MyBackend
+}
+```
+
+And finally you should extend `DefaultPickler`, mixing it with your backend component:
+
+```scala
+trait MyPickler extends DefaultPickler with MyBackendComponent
+object MyPickler extends MyPickler
+```
+
+Naturally, you can choose not to merge the `DefaultPickler` fully into your pickler if you don't want it, for example,
+if you don't need the automatic writers materialization for sealed trait hierarchies. In that case you can
+mix only those traits you need. See `DefaultPickler` documentation to find out which components it consists of
+(**TODO**).
+
+After this `MyPickler.read` and `MyPickler.write` methods will work with your backend representation.
+
 #### Instantiating custom serializers
 
 picopickle defines `Writer` and `Reader` basic types in `TypesComponent` which are responsible
