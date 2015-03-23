@@ -83,7 +83,7 @@ and sealed traits.
 Since sealed trait hierarchies are equivalent to algebraic data types, their representation
 with the shapeless type is fairly natural: each case class/case object is represented
 by a `HList` of corresponding field types labelled with field names, and the whole hierarchy
-is represented by a `Coproduct` of the corresponding `HList`s.
+is represented by a `Coproduct` of the corresponding types.
 
 picopickle also supports recursive types, that is, when a case class eventually depends on
 itself or on the sealed trait it belongs to, for example:
