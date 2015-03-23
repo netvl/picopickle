@@ -455,6 +455,12 @@ val intListConv: Converter.Id[List[Int]] = arr.as[List].of(num.int)
 val vecTreeMapConv: Converter.Id[TreeMap[String, Vector[Double]]] = obj.as[TreeMap].to(arr.as[Vector].of(num.double))
 ```
 
+There is also a converter which delegates to `Reader` and `Writer` if corresponding implicit instances are available:
+
+```scala
+val optionStringConv: Converter.Id[Option[String]] = value[Option[String]]
+```
+
 You can find more on converters in their Scaladoc section (**TODO**).
 
 Supported types
