@@ -243,3 +243,11 @@ cases:
           - 'A(10, enabled = true)'
           - 'Map("$variant" -> "A", "x" -> 10, "enabled" -> true)'
           - '"""{"$variant":"A","x":10,"enabled":true}"""'
+  - name: case classes with null fields
+    prepend: |
+      import CaseClass._
+    rw:
+      - - 'A(10, null)'
+        - 'Map("x" -> 10, "y" -> null)'
+        - '"""{"x":10,"y":null}"""'
+
