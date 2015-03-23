@@ -17,7 +17,7 @@ trait ConvertersTestBase extends FreeSpec with ShouldMatchers with DefaultPickle
   this: BackendComponent =>
 
   import backend._
-  import BackendConversionImplicits._
+  import backendConversionImplicits._
   import converters._
   import ConvertersTestBase.ComplexObjects._
 

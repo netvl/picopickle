@@ -119,7 +119,7 @@ trait Backend {
     }
   }
 
-  object BackendConversionImplicits {
+  object backendConversionImplicits {
     implicit class MapToBackendExt(val m: Map[String, BValue]) {
       def toBackend: BObject = makeObject(m)
     }

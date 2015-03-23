@@ -95,7 +95,7 @@ trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
 
   implicit def fieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Lazy[Writer[V]]): Writer[FieldType[K, V]] =
-    Writer.fromPF0 { f => {
+    Writer.fromPF0N { f => {
       case Some(backend.Get.Object(v)) => backend.setObjectKey(v, kw.value.name, vw.value.write(f))
       case None => backend.makeObject(Map(kw.value.name -> vw.value.write(f)))
     }}
@@ -106,7 +106,7 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
 
   implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K],
                                                      vw: Lazy[Writer[V]]): Writer[FieldType[K, Option[V]]] =
-    Writer.fromPF0 { f => {
+    Writer.fromPF0N { f => {
       case Some(backend.Get.Object(v)) => (f: Option[V]) match {
         case Some(value) => backend.setObjectKey(v, kw.value.name, vw.value.write(value))
         case None => v: backend.BValue
@@ -124,12 +124,10 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
     }
 
   implicit val hnilWriter: Writer[HNil] =
-    new Writer[HNil] {
-      override def write0(value: HNil, acc: Option[backend.BValue]): backend.BValue = acc match {
-        case Some(bv) => bv
-        case None => backend.makeEmptyObject
-      }
-    }
+    Writer.fromPF0N { _ => {
+      case Some(bv) => bv
+      case None => backend.makeEmptyObject
+    } }
 
   protected object ObjectOrEmpty {
     def unapply(bv: Option[backend.BValue]): Option[backend.BObject] = bv match {
@@ -151,13 +149,11 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
     }
 
   implicit val cnilWriter: Writer[CNil] =
-    new Writer[CNil] {
-      override def write0(value: CNil, acc: Option[backend.BValue]): backend.BValue = acc match {
-        case Some(obj) => obj  // pass through the accumulated value
-        // This is impossible, I believe
-        case None => throw new IllegalStateException("Couldn't serialize a sealed trait")
-      }
-    }
+    Writer.fromPF0N { _ =>  {
+      case Some(obj) => obj  // pass through the accumulated value
+      // This is impossible, I believe
+      case None => throw new IllegalStateException("Couldn't serialize a sealed trait")
+    } }
 }
 
 trait LowerPriorityShapelessReaders2 {
@@ -179,12 +175,6 @@ trait LowerPriorityShapelessReaders2 {
 trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
   this: BackendComponent with TypesComponent with DefaultValuesComponent =>
   
-//  implicit def fieldTypeReader[K <: Symbol, V](implicit kw: Witness.Aux[K],
-//                                               vr: Lazy[Reader[V]]): Reader[FieldType[K, V]] =
-//    Reader {
-//      case backend.Get.Object(v) => field[K](vr.value.read(backend.getObjectKey(v, kw.value.name).get))
-//    }
-
   implicit def fieldTypeReaderTagged[K <: Symbol, V, T](implicit kw: Witness.Aux[K],
                                                         vr: Lazy[Reader[V]],
                                                         dv: DefaultValue.Aux[T, K, V]): Reader[FieldType[K, V] @@@ T] =

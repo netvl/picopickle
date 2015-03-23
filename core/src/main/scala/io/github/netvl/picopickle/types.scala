@@ -8,7 +8,8 @@ import scala.annotation.implicitNotFound
  *
  * Mixed into every [[Pickler]] object.
  */
-trait TypesComponent { this: BackendComponent =>
+trait TypesComponent {
+  this: BackendComponent with NullHandlerComponent =>
   /**
    * Convenient alias for [[scala.PartialFunction PartialFunction]].
    */
@@ -61,7 +62,7 @@ trait TypesComponent { this: BackendComponent =>
     /**
      * Creates a new writer from a function of type `T => PF[Option[backend.BValue], backend.BValue]`.
      *
-     * Mostly intended for internal use. Regular clients should use [[Writer.apply apply]] method.
+     * Mostly intended for internal use. Regular clients should use [[Writer$.apply apply]] method.
      *
      * @param ff a function defining writer behavior
      * @tparam T source type
@@ -70,13 +71,28 @@ trait TypesComponent { this: BackendComponent =>
     def fromPF0[T](ff: T => PF[Option[backend.BValue], backend.BValue]) =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
+          nullHandler.toBackend[T](value, ff(_)(acc))
+      }
+
+    /**
+     * Same as [[Writer$.writePF0 writePF0]], but does not delegate nulls handling to `NullHandler`.
+     *
+     * Mostly intended for internal use. Regular clients should use [[Writer$.apply apply]] method.
+     *
+     * @param ff a function defining writer behavior
+     * @tparam T source type
+     * @return a writer delegating to the provided function
+     */
+    def fromPF0N[T](ff: T => PF[Option[backend.BValue], backend.BValue]) =
+      new Writer[T] {
+        override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           ff(value)(acc)
       }
 
     /**
      * Creates a new writer from a partial function of type `PF[(T, Option[backend.BValue]), backend.BValue]`.
      *
-     * Mostly intended for internal use. Regular clients should use [[Writer.apply apply]] method.
+     * Mostly intended for internal use. Regular clients should use [[Writer$.apply apply]] method.
      *
      * @param ff a function defining writer behavior
      * @tparam T source type
@@ -85,7 +101,7 @@ trait TypesComponent { this: BackendComponent =>
     def fromPF1[T](ff: PF[(T, Option[backend.BValue]), backend.BValue]) =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
-          ff(value -> acc)
+          nullHandler.toBackend[T](value, v => ff(v -> acc))
       }
 
     /**
@@ -98,14 +114,14 @@ trait TypesComponent { this: BackendComponent =>
      * {{{
      *   case class A(x: Int, y: String)
      *
-     *   import converters._
-     *   implicit val aWriter: Writer[A] =
-     *     unlift(A.unapply) >>> obj {
-     *       ("a" -> num.int) ::
-     *       ("b" -> str) ::
-     *       HNil
-     *     }
+     *   import backendConversionImplicits._
+     *   implicit val aWriter: Writer[A] = Writer {
+     *     case A(x, y) => Map("a" -> x.toBackend, "b" -> y.toBackend).toBackend
+     *   }
      * }}}
+     *
+     * As manual construction of complex objects may quickly turn very unwieldy, it is recommended
+     * to use [[io.github.netvl.picopickle.ConvertersComponent converters]] instead.
      *
      * @param ff a function defining writer behavior
      * @tparam T source type
@@ -114,7 +130,7 @@ trait TypesComponent { this: BackendComponent =>
     def apply[T](ff: PF[T, backend.BValue]) =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
-          ff(value)
+          nullHandler.toBackend[T](value, ff)
       }
   }
 
@@ -205,14 +221,19 @@ trait TypesComponent { this: BackendComponent =>
      * {{{
      *   case class A(x: Int, y: String)
      *
-     *   import converters._
-     *   implicit val aReader: Reader[A] =
-     *     obj {
-     *       ("a" -> num.int) ::
-     *       ("b" -> str) ::
-     *       HNil
-     *     } >>> A.apply _
+     *   implicit val aReader: Reader[A] = Reader {
+     *     case backend.Extract.Object(m) if m.contains("a") && m.contains("b") &&
+     *                                       backend.getNumber(m("a")).isDefined &&
+     *                                       backend.getString(m("b")).isDefined =>
+     *       A(
+     *         backend.Extract.Number.unapply(m("a")).get,
+     *         backend.Extract.String.unapply(m("b")).get
+     *       )
+     *   }
      * }}}
+     *
+     * As manual deconstruction of complex object may quickly turn very unwieldy, it is recommended
+     * to use [[io.github.netvl.picopickle.ConvertersComponent converters]] instead.
      *
      * @param f a partial function from backend representation to the target type
      * @tparam T target type
@@ -220,8 +241,11 @@ trait TypesComponent { this: BackendComponent =>
      */
     def apply[T](f: PF[backend.BValue, T]) =
       new Reader[T] {
-        override def canRead(value: backend.BValue) =  f.isDefinedAt(value)
-        override def read(value: backend.BValue): T = f(value)
+        override def canRead(value: backend.BValue) = value match {
+          case null => nullHandler.handlesNull
+          case _ => f.isDefinedAt(value)
+        }
+        override def read(value: backend.BValue): T = nullHandler.fromBackend[T](value, f)
       }
   }
 
@@ -246,9 +270,12 @@ trait TypesComponent { this: BackendComponent =>
     }
 
     private class PfReadWriter[T](rf: PF[backend.BValue, T], wf: PF[T, backend.BValue]) extends Reader[T] with Writer[T] {
-      override def canRead(value: backend.BValue) = rf.isDefinedAt(value)
-      override def read(value: backend.BValue) = rf(value)
-      override def write0(value: T, acc: Option[backend.BValue]) = wf(value)
+      override def canRead(value: backend.BValue) = value match {
+        case backend.Get.Null(_) => nullHandler.handlesNull
+        case _ => rf.isDefinedAt(value)
+      }
+      override def read(value: backend.BValue) = nullHandler.fromBackend(value, rf)
+      override def write0(value: T, acc: Option[backend.BValue]) = nullHandler.toBackend(value, wf)
     }
   }
 }

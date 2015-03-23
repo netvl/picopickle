@@ -10,6 +10,7 @@ trait DefaultPickler
   extends Pickler
   with ShapelessReaderWritersComponent
   with DefaultValuesComponent
+  with DefaultNullHandlerComponent
   with AnnotationSupportingSymbolicLabellingComponent
   with DefaultSealedTraitDiscriminatorComponent
   with PrimitiveReaderWritersComponent
