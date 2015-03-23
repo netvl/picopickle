@@ -271,7 +271,7 @@ trait MyPickler extends DefaultPickler with MyBackendComponent
 object MyPickler extends MyPickler
 ```
 
-Naturally, you can choose not to merge the `DefaultPickler` fully into your pickler if you don't want it, for example,
+Naturally, you can choose not to merge the `DefaultPickler` fully into your pickler if you don't want to, for example,
 if you don't need the automatic writers materialization for sealed trait hierarchies. In that case you can
 mix only those traits you need. See `DefaultPickler` documentation to find out which components it consists of
 (**TODO**).
@@ -281,14 +281,14 @@ After this `MyPickler.read` and `MyPickler.write` methods will work with your ba
 #### Instantiating custom serializers
 
 picopickle defines `Writer` and `Reader` basic types in `TypesComponent` which are responsible
-for converting arbitrary types to their backend representation and back, respectively. The main
+for converting arbitrary types to their backend representation and back, respectively. The most basic
 way to construct custom serializers is to use `apply` method on `Reader` and `Writer` companion objects,
 which take `PartialFunction[backend.BValue, T]` and `PartialFunction[T, backend.BValue]`, respectively
 (you can find an example of both above).
 
 Despite that `Writer` takes a partial function, it still should be able to serialize any values
-of their corresponding type. `Reader`, however, can fail to match the backend representation. Currently
-it will lead to a `MatchError` thrown by `read()` call; this is going to improve in future.
+of its corresponding type. `Reader`, however, can fail to match the backend representation. Currently
+it will usually lead to a `MatchError` thrown by the `read()` call; this is going to improve in future.
 
 `TypesComponent` also defines a combined serializer called `ReadWriter`:
 
@@ -314,7 +314,7 @@ You can switch `reading`/`writing` branches order if you like.
 `Backend` trait provides methods to create and deconstruct objects of backend representation: these are `make`, `from`
 and `get` methods described above. To simplify writing custom serializers, however, picopickle
 provides a set of tools which help you writing conversions. The most basic of them are extractors and
-and backend conversion implicits.
+backend conversion implicits.
 
 Backend object contains several singleton objects with `unapply` methods which can be used to pattern-match
 on `backend.BValue` and obtain the low-level values out of it, for example, to get a `Map[String, backend.BValue]`
@@ -344,7 +344,7 @@ object Extractors {
 ```
 
 The opposite conversion (from primitives to the backend representation) can be done with `make` methods on the
-backend, but picopickle provides a set of implicit decorators which provide `toBackend` method on all of
+backend, but picopickle also provides a set of implicit decorators which provide `toBackend` method on all of
 the basic types. These decorators are defined in `backend.BackendConversionImplicits` object:
 
 ```scala
@@ -357,6 +357,8 @@ val s: backend.BString = "hello world".toBackend
 val s: backend.BString = backend.makeString("hello world")
 ```
 
+These implicit methods are somewhat more convenient that `make*` functions.
+
 Converters
 ----------
 
@@ -368,8 +370,6 @@ A converter looks much like a `ReadWriter`; however, it is parameterized by two 
 
 ```scala
 trait Converter[-T, +U] {
-  self =>
-
   def toBackend(v: T): backend.BValue
   def isDefinedAt(bv: backend.BValue): Boolean
   def fromBackend(bv: backend.BValue): U
@@ -385,7 +385,7 @@ Converter[_, U] -> Reader[U]
 Converter[T, T] -> ReadWriter[T]
 ```
 
-The converter which consumes and produces the same type is called an *identity* converter for that type. Naturally,
+A converter which consumes and produces the same type is called an *identity* converter for that type. Naturally,
 only identity converters can be used as `ReadWriter`s. Identity converters have a convenient type alias
 `Converter.Id[T]`.
 
@@ -409,6 +409,7 @@ trait CustomSerializers extends JsonPickler {
 
   val aReadWriter: ReadWriter[A] = aConverter  // an implicit conversion is used here
 }
+```
 
 Here `obj.apply` is used to define an identity converter for `Boolean :: Double :: HNil`,
 and `>>>` operations "prepend" and "append" a deconstructor and a constructor for class `A`:
@@ -447,7 +448,7 @@ of fields:
 val aReadWriter: ReadWriter[A] = unlift(A.unapply) >>> arr(bool :: num.double :: HNil) >>> A.apply _
 ```
 
-Naturally, there are converters for homogeneous collections:
+Naturally, there are converters for homogeneous collections too:
 
 ```scala
 val intListConv: Converter.Id[List[Int]] = arr.as[List].of(num.int)
@@ -489,7 +490,8 @@ object CustomPickler extends JsonPickler {
 
 (of course, you can extract it into a separate trait and mix it into different picklers)
 
-**TODO: add a list of supported types**
+**TODO: add a list of supported types with explanations**
+**TODO: add a note on renaming fields**
 
 ### Accurate numbers serialization
 
@@ -518,7 +520,13 @@ Official backends
 ### Collections pickler
 
 picopickle has several "official" backends. One of them, provided by `picopickle-core` library, allows serialization
-into a tree of collections. In this backend the following AST mapping holds:
+into a tree of collections. This backend is available immediately with only the `core` dependency:
+
+```scala
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.0.2"
+```
+
+In this backend the following AST mapping holds:
 
 ```
 BValue   -> Any
@@ -547,7 +555,11 @@ write(Map(1 -> 2, 3 -> 4))        ->  Vector(Vector(1, 2), Vector(3, 4))
 ### JSON pickler
 
 Another official backend is used for conversion to and from JSON. JSON parsing is done with [jawn] library;
-JSON rendering, however, is custom.
+JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
+
+```scala
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.0.2"
+```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
 basic case classes corresponding to JSON basic types. No additional utilities for JSON manipulation are provided;
@@ -565,12 +577,13 @@ Error handling
 --------------
 
 While serialization is straightforward and should never fail (if it does, it is most likely a bug in the library
-or in `Writer` implementation), deserialization is prone to errors because serialized representation usually
-has free-form structure and is not statically mapped on Scala representation. However, picopickle does not currently
-have special handling for deserialization errors. Expect arbitrary `NoSuchElementException`s and `MatchError`s
-from `read()` calls unless you know in advance that your data is correct.
+or in some `Writer` implementation), deserialization is prone to errors because the serialized representation usually
+has free-form structure and is not statically mapped on its Scala representation. However, picopickle does not
+currently have special handling for deserialization errors. Expect arbitrary `NoSuchElementException`s and
+`MatchError`s from `read()` calls unless you know in advance that your data is correct.
 
-This is going to change in the nearest future.
+This is going to change in the nearest future; some special kinds of exceptions are going to be introduced,
+and safe methods like `readSafely[T](value: backend.BValue): Try[T]` are likely to be added.
 
 
 Plans
@@ -582,6 +595,7 @@ Plans
 * Add more backends (e.g. BSON backend)
 * Add more tests
 * Add more documentation
+
 
 Changelog
 ---------
