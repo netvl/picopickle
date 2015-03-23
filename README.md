@@ -238,7 +238,14 @@ types. The mapping is as follows:
   BNull    -> Null
 ```
 
-That is, each backend should provide methods to convert from `BValue` to `Map[String, BValue]` and back etc.
+That is, each backend should provide methods to convert from `BValue` to `Map[String, BValue]` and back etc. These
+methods can be divided into three groups:
+
+* those which convert Scala values to backend representation: prefixed with `make`;
+* those which convert backend representation to Scala values: prefixed with `from`;
+* those which extract concrete backend type (e.g. `BObject`, `BString`) from the abstract `BValue`: prefixed with `get`.
+
+The last group of methods return `Option[<corresponding type>]` because they are partial in their nature.
 
 #### Instantiating custom serializers
 
@@ -273,13 +280,13 @@ You can switch `reading`/`writing` branches order if you like.
 
 #### Extractors and backend conversion implicits
 
-`Backend` trait provides methods to create and deconstruct objects of backend representation. You can find
-more on them in the section on backends below. To simplify writing custom serializers, however, picopickle
+`Backend` trait provides methods to create and deconstruct objects of backend representation: these are `make`, `from`
+and `get` methods described above. To simplify writing custom serializers, however, picopickle
 provides a set of tools which help you writing conversions. The most basic of them are extractors and
 and backend conversion implicits.
 
 Backend object contains several singleton objects with `unapply` methods which can be used to pattern-match
-on `backend.BValue` and obtain the low-level values out of it, for example, obtain a `Map[String, backend.BValue]`
+on `backend.BValue` and obtain the low-level values out of it, for example, to get a `Map[String, backend.BValue]`
 out of `backend.BObject`, if this particular `backend.BValue` which you're matching on indeed is a `backend.BObject`:
 
 ```scala
@@ -295,8 +302,128 @@ There are extractors for all of the main backend representation variants:
  * `backend.Extract.Number`
  * `backend.Extract.Boolean`
 
-These extractors
+Their `unapply` implementation simply calls corresponding `get` and `from` methods, like this:
 
+```scala
+object Extractors {
+  object String {
+    def unapply(value: BValue): Option[String] = getString(value).map(fromString)
+  }
+}
+```
+
+The opposite conversion (from primitives to the backend representation) can be done with `make` methods on the
+backend, but picopickle provides a set of implicit decorators which provide `toBackend` method on all of
+the basic types. These decorators are defined in `backend.BackendConversionImplicits` object:
+
+```scala
+import backend.BackendConversionImplicits._
+
+val s: backend.BString = "hello world".toBackend
+
+// the above is equivalent to this:
+
+val s: backend.BString = backend.makeString("hello world")
+```
+
+Converters
+----------
+
+Low-level conversions, however, may be overly verbose to write. picopickle provides a declarative way of
+defining how the backend representation should be translated to the desired Scala objects and vice versa.
+This is done with *converters*.
+
+A converter looks much like a `ReadWriter`; however, it is parameterized by two types, source and target:
+
+```scala
+trait Converter[-T, +U] {
+  self =>
+
+  def toBackend(v: T): backend.BValue
+  def isDefinedAt(bv: backend.BValue): Boolean
+  def fromBackend(bv: backend.BValue): U
+}
+```
+
+The converters library defines several implicit conversions which allow any converter to be used as the
+corresponding `Reader`, `Writer` or `ReadWriter`:
+
+```scala
+Converter[T, _] -> Writer[T]
+Converter[_, U] -> Reader[U]
+Converter[T, T] -> ReadWriter[T]
+```
+
+The converter which consumes and produces the same type is called an *identity* converter for that type. Naturally,
+only identity converters can be used as `ReadWriter`s. Identity converters have a convenient type alias
+`Converter.Id[T]`.
+
+Converters library also defines several combinators on converters which allow combining them to obtain new
+converters, and it also provides built-in converters for basic primitive types and objects and arrays.
+
+For example, here is how you can define a conversion for some case class manually:
+
+```scala
+case class A(a: Boolean, b: Double)
+
+trait CustomSerializers extends JsonPickler {
+  import shapeless._
+  import converters._
+
+  val aConverter: Converter.Id[A] = unlift(A.unapply) >>> obj {
+    "a" -> bool ::
+    "b" -> num.double ::
+    HNil
+  } >>> A.apply _
+
+  val aReadWriter: ReadWriter[A] = aConverter  // an implicit conversion is used here
+}
+
+Here `obj.apply` is used to define an identity converter for `Boolean :: Double :: HNil`,
+and `>>>` operations "prepend" and "append" a deconstructor and a constructor for class `A`:
+
+```scala
+A.unapply          : A => Option[(Boolean, Double)]
+unlift(A.unapply)  : A => (Boolean, Double)
+
+A.apply _          : (Boolean, Double) => A
+
+obj {
+  "a" -> bool ::
+  "b" -> num.double ::
+  HNil
+}                  : Converter.Id[Boolean :: Double :: HNil]
+```
+
+`bool` and `num.double` are identity converters for `Boolean` and `Double`, respectively.
+
+`>>>` operations employ a little of shapeless magic to convert the functions like the ones above to functions
+which consume and produce `HList`s. There is also `>>` combinator which does not use shapeless and "prepends"
+and "appends" a function of corresponding type:
+
+```scala
+(A => B) >> Converter[B, C] >> (C => D)  ->  Converter[A, D]
+
+// compare:
+
+(A => (T1, T2, ..., Tn)) >>> Converter.Id[T1 :: T2 :: ... :: Tn :: HNil] >>> ((T1, T2, ..., Tn) => A)  ->  Converter.Id[A]
+```
+
+Similar thing is also possible for arrays. For example, you can serialize your case class as an array
+of fields:
+
+```scala
+val aReadWriter: ReadWriter[A] = unlift(A.unapply) >>> arr(bool :: num.double :: HNil) >>> A.apply _
+```
+
+Naturally, there are converters for homogeneous collections:
+
+```scala
+val intListConv: Converter.Id[List[Int]] = arr.as[List].of(num.int)
+val vecTreeMapConv: Converter.Id[TreeMap[String, Vector[Double]]] = obj.as[TreeMap].to(arr.as[Vector].of(num.double))
+```
+
+You can find more on converters in their Scaladoc section (**TODO**).
 
 Supported types
 ---------------
@@ -331,23 +458,93 @@ object CustomPickler extends JsonPickler {
 
 (of course, you can extract it into a separate trait and mix it into different picklers)
 
+**TODO: add a list of supported types**
+
+### Accurate numbers serialization
+
+Some backends do not allow serializing some numbers accurately. For example, most JSON implementations
+represent all numbers with 64-bit floating point numbers, i.e. `Double`s. Scala `Long`, for example,
+can't be represented accurately with `Double`. This is even more true for big integers and decimals.
+
+picopickle backends provide means to serialize arbitrary numbers as accurately as possible with these methods:
+
+```scala
+  def makeNumberAccurately(n: Number): BValue
+  def fromNumberAccurately(value: BValue): Number
+```
+
+You can see that these methods take and return `BValue` instead of `BNumber`. Backend implementations can take
+advantage of this and serialize long numbers as strings or in some other format in order to keep the precision.
+Built-in serializers for numbers use these methods by default.
+
+picopickle also provides a special trait, `DoubleOrStringNumberRepr`, which provides methods to store a number
+as a `BNumber` if it can be represented precisely in `Double` as a `BString` otherwise.
+This trait is useful e.g. when writing a JSON-based backend.
+
+Official backends
+-----------------
+
 ### Collections pickler
 
-**TODO**
+picopickle has several "official" backends. One of them, provided by `picopickle-core` library, allows serialization
+into a tree of collections. In this backend the following AST mapping holds:
+
+```
+BValue   -> Any
+BObject  -> Map[String, Any]
+BArray   -> Vector[Any]
+BString  -> String
+BNumber  -> Number
+BBoolean -> Boolean
+BNull    -> Null
+```
+
+In this backend the backend representation coincide with the target media, so no conversion methods except the
+basic `read`/`write` are necessary.
+
+This backend also tweaks the default `Char` serializer to write and read characters as `Char`s, not
+as `String`s (which is the default behavior).
+
+Note that everything else, even other collections, are still serialized as usual, so, for example, tuples are
+represented as vectors and maps are represented as vectors of vectors:
+
+```scala
+write((2: Int, "abcde": String))  ->  Vector(2, "abcde")
+write(Map(1 -> 2, 3 -> 4))        ->  Vector(Vector(1, 2), Vector(3, 4))
+```
 
 ### JSON pickler
 
-**TODO**
+Another official backend is used for conversion to and from JSON. JSON parsing is done with [jawn] library;
+JSON rendering, however, is custom.
 
-Converters
-----------
+This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
+basic case classes corresponding to JSON basic types. No additional utilities for JSON manipulation are provided;
+you should use another library if you want this.
 
-**TODO**
+JSON backend additionally provides two sets of methods: `readAst`/`writeAst`, which convert JSON AST from and to the
+JSON rendered as a string, and `readString`/`writeString`, which [de]serialize directly from and to a string.
+Usually the last pair of methods is what you want to use when you want to work with JSON serialization.
+
+No support for streaming serialization is available and is not likely to appear in the future because of the
+abstract nature of backends (not every backend support streaming, for example, collections backend doesn't) and
+because it would require completely different architecture.
+
+Error handling
+--------------
+
+While serialization is straightforward and should never fail (if it does, it is most likely a bug in the library
+or in `Writer` implementation), deserialization is prone to errors because serialized representation usually
+has free-form structure and is not statically mapped on Scala representation. However, picopickle does not currently
+have special handling for deserialization errors. Expect arbitrary `NoSuchElementException`s and `MatchError`s
+from `read()` calls unless you know in advance that your data is correct.
+
+This is going to change in the nearest future.
+
 
 Plans
 -----
 
-* Improve custom serializers writing ergonomics
 * Add proper exception handling
 * Consider adding support for more types
 * Consider adding more converters (e.g. for tuples)
