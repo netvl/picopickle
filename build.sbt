@@ -1,3 +1,5 @@
+crossScalaVersions := Seq("2.10.4", "2.11.5")
+
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
   version := "0.1.0",
@@ -29,18 +31,33 @@ val commonSettings = bintrayPublishSettings ++ commonCommonSettings ++ Seq(
     </scm>
 )
 
-def shapelessDependency = Seq("com.chuusai" %% "shapeless" % "2.1.0")
+def shapelessDependency(scalaVersion: String) = scalaVersion match {
+  case v if v.startsWith("2.10") => Seq(
+    "com.chuusai" %% "shapeless" % "2.1.0" cross CrossVersion.full,
+    compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
+  )
+  case _ => Seq("com.chuusai" %% "shapeless" % "2.1.0")
+}
 
-def commonDependencies = Seq("org.scalatest" %% "scalatest" % "2.2.0" % "test") ++ shapelessDependency
+def commonDependencies(scalaVersion: String) =
+  Seq("org.scalatest" %% "scalatest" % "2.2.0" % "test") ++ shapelessDependency(scalaVersion)
 
 lazy val core = project
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle-core",
 
-    libraryDependencies ++= commonDependencies ++ Seq(
+    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value
     ),
+
+    unmanagedSourceDirectories in Compile += {
+      val sourceRoot = (sourceDirectory in Compile).value
+      scalaVersion.value match {
+        case v if v.startsWith("2.10") => sourceRoot / "scala-2.10"
+        case _                         => sourceRoot / "scala-2.11"
+      }
+    },
 
     sourceGenerators in Compile += task[Seq[File]] {
       val outFile = (sourceManaged in Compile).value / "io" / "github" / "netvl" / "picopickle" / "generated.scala"
@@ -110,7 +127,7 @@ lazy val jawn = project
 
     sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
 
-    libraryDependencies ++= commonDependencies ++ Seq(
+    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
       "org.spire-math" %% "jawn-parser" % "0.7.2"
     )
   )

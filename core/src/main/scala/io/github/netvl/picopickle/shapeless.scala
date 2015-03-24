@@ -5,7 +5,7 @@ import shapeless.labelled._
 
 import scala.language.experimental.macros
 import scala.annotation.StaticAnnotation
-import scala.reflect.macros.whitebox
+import BinaryVersionSpecificDefinitions._
 
 import io.github.netvl.picopickle.SourceTypeTag.@@@
 
@@ -21,21 +21,21 @@ trait DefaultSealedTraitDiscriminatorComponent extends SealedTraitDiscriminatorC
 
 trait AnnotationSupportingSymbolicLabellingComponent {
   implicit def mkSymbolicLabelling[T]: DefaultSymbolicLabelling[T] =
-    macro AnnotationSupportSymbolicLabelling.mkDefaultSymbolicLabellingImpl[T]
+    macro AnnotationSupportSymbolicLabellingImpl.mkDefaultSymbolicLabellingImpl[T]
 }
 
 // Extracted almost entirely from shapeless and tweaked to support custom annotations
-class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledMacros(cc) {
+trait AnnotationSupportSymbolicLabelling extends ContextExtensions with LabelledMacrosExtensions {
   import c.universe._
 
-  override def mkDefaultSymbolicLabellingImpl[T](implicit tTag: WeakTypeTag[T]): Tree = {
+  def mkDefaultSymbolicLabellingImpl[T](implicit tTag: WeakTypeTag[T]): Tree = {
     val tTpe = weakTypeOf[T]
     val labels: List[String] =
-      if(isProduct(tTpe)) fieldSymbolsOf(tTpe).map(obtainKeyOfField(_, tTpe))
-      else if(isCoproduct(tTpe)) ctorsOf(tTpe).map(obtainKeyOfType)
+      if (isProduct(tTpe)) fieldSymbolsOf(tTpe).map(obtainKeyOfField(_, tTpe))
+      else if (isCoproduct(tTpe)) ctorsOf(tTpe).map(obtainKeyOfType)
       else c.abort(c.enclosingPosition, s"$tTpe is not case class like or the root of a sealed family of types")
 
-    val labelTpes = labels.map(SingletonSymbolType(_))
+    val labelTpes = labels.map(mkSingletonSymbolType)
     val labelValues = labels.map(mkSingletonSymbol)
 
     val labelsTpe = mkHListTpe(labelTpes)
@@ -52,12 +52,12 @@ class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledM
     """
   }
 
-  def isKeyAnnotation(ann: Annotation): Boolean = ann.tree.tpe =:= typeOf[key]
+  def isKeyAnnotation(ann: Annotation): Boolean = annotationType(ann) =:= typeOf[key]
 
   def obtainKeyOfSym(sym: Symbol) = {
     sym.annotations
       .find(isKeyAnnotation)
-      .flatMap(_.tree.children.tail.headOption)
+      .flatMap(annotationArgs(_).headOption)
       .collect { case Literal(Constant(s)) => s.toString }
       .getOrElse(nameAsString(sym.name))
   }
@@ -65,19 +65,19 @@ class AnnotationSupportSymbolicLabelling(cc: whitebox.Context) extends LabelledM
   def obtainKeyOfType(tpe: Type): String = obtainKeyOfSym(tpe.typeSymbol)
 
   def obtainKeyOfField(sym: Symbol, tpe: Type): String = {
-    tpe.decls
-      .collect { case d if d.name == termNames.CONSTRUCTOR => d.asMethod }
-      .flatMap(_.paramLists.flatten)
+    decls(tpe)
+      .collect { case d if d.name == names.CONSTRUCTOR => d.asMethod }
+      .flatMap(paramLists(_).flatten)
       .filter(_.name == sym.name)  // don't know if this is a good idea but I see no other way
       .flatMap(_.annotations)
       .find(isKeyAnnotation)
-      .flatMap(_.tree.children.tail.headOption)
+      .flatMap(annotationArgs(_).headOption)
       .collect { case Literal(Constant(s)) => s.toString }
       .getOrElse(nameAsString(sym.name))
   }
 
   def fieldSymbolsOf(tpe: Type): List[TermSymbol] =
-    tpe.decls.toList collect {
+    decls(tpe).toList collect {
       case sym: TermSymbol if isCaseAccessorLike(sym) => sym
     }
 }
