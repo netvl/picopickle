@@ -87,7 +87,8 @@ trait CollectionWriters {
 trait CollectionReaders {
   this: BackendComponent with TypesComponent =>
 
-  protected final def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T], cbf: CanBuildFrom[C[T], T, C[T]]) =
+  protected final def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T],
+                                                               cbf: CanBuildFrom[C[T], T, C[T]]): Reader[C[T]] =
     Reader {
       case backend.Extract.Array(arr) => arr.map(r.read).to[C]
     }

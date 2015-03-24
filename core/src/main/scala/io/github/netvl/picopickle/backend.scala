@@ -71,28 +71,6 @@ trait Backend {
     }
   }
 
-  object From {
-    object Object {
-      def unapply(value: BObject): Option[Map[String, BValue]] = Some(Backend.this.fromObject(value))
-    }
-
-    object Array {
-      def unapply(value: BArray): Option[Vector[BValue]] = Some(Backend.this.fromArray(value))
-    }
-
-    object String {
-      def unapply(value: BString): Option[String] = Some(Backend.this.fromString(value))
-    }
-
-    object Number {
-      def unapply(value: BNumber): Option[Number] = Some(Backend.this.fromNumber(value))
-    }
-
-    object Boolean {
-      def unapply(value: BBoolean): Option[Boolean] = Some(Backend.this.fromBoolean(value))
-    }
-  }
-
   object Get {
     object Object {
       def unapply(value: BValue): Option[BObject] = Backend.this.getObject(value)
@@ -119,7 +97,7 @@ trait Backend {
     }
   }
 
-  object backendConversionImplicits {
+  object conversionImplicits {
     implicit class MapToBackendExt(val m: Map[String, BValue]) {
       def toBackend: BObject = makeObject(m)
     }

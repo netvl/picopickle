@@ -68,7 +68,7 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def fromPF0[T](ff: T => PF[Option[backend.BValue], backend.BValue]) =
+    def fromPF0[T](ff: T => PF[Option[backend.BValue], backend.BValue]): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           nullHandler.toBackend[T](value, ff(_)(acc))
@@ -83,7 +83,7 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def fromPF0N[T](ff: T => PF[Option[backend.BValue], backend.BValue]) =
+    def fromPF0N[T](ff: T => PF[Option[backend.BValue], backend.BValue]): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           ff(value)(acc)
@@ -98,7 +98,7 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def fromPF1[T](ff: PF[(T, Option[backend.BValue]), backend.BValue]) =
+    def fromPF1[T](ff: PF[(T, Option[backend.BValue]), backend.BValue]): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           nullHandler.toBackend[T](value, v => ff(v -> acc))
@@ -127,7 +127,7 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def apply[T](ff: PF[T, backend.BValue]) =
+    def apply[T](ff: PF[T, backend.BValue]): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           nullHandler.toBackend[T](value, ff)
@@ -239,7 +239,7 @@ trait TypesComponent {
      * @tparam T target type
      * @return a reader delegating to the provided function.
      */
-    def apply[T](f: PF[backend.BValue, T]) =
+    def apply[T](f: PF[backend.BValue, T]): Reader[T] =
       new Reader[T] {
         override def canRead(value: backend.BValue) = value match {
           case backend.Get.Null(_) => nullHandler.handlesNull
