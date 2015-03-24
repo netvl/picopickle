@@ -721,6 +721,12 @@ with a default value other than `None`:
 
 This is what usually expected in such situation.
 
+### Varargs
+
+Currently picopickle does not support reading or writing case classes with variable arguments because shapeless
+`Generic` (and thus `LabelledGeneric`) do not support such classes in 2.1.0. This is already fixed in shapeless master,
+and when the next shapeless version is released, picopickle will be able to handle such classes as well.
+
 ### Nulls
 
 `null` value, as is widely known, tends to cause problems, and it is discouraged in idiomatic Scala code.
