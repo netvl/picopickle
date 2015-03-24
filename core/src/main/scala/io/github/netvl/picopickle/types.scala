@@ -242,7 +242,7 @@ trait TypesComponent {
     def apply[T](f: PF[backend.BValue, T]) =
       new Reader[T] {
         override def canRead(value: backend.BValue) = value match {
-          case null => nullHandler.handlesNull
+          case backend.Get.Null(_) => nullHandler.handlesNull
           case _ => f.isDefinedAt(value)
         }
         override def read(value: backend.BValue): T = nullHandler.fromBackend[T](value, f)
