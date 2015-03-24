@@ -9,9 +9,12 @@ picopickle is a serialization library for Scala. Its main features are:
 * Small and almost dependency-less (the core library depends only on [shapeless]).
 * Extensibility: you can define your own serializators for your types and you can create
   custom *backends*, that is, you can use the same library for the different serialization formats
-  (collections, JSON, BSON, etc.).
+  (collections, JSON, BSON, etc.); other parts of the serialization behavior like nulls handling
+  can also be customized.
+* Flexibility and convenience: default serialization format is fine for most uses, but it can
+  be customized almost arbitrarily with the support of a convenient converters DSL.
 * Static serialization without reflection: shapeless [`Generic`][Generic] macros are used to
-  provide serializers for arbitrary types.
+  provide serializers for arbitrary types, which means that no reflection is used.
 
   [shapeless]: https://github.com/milessabin/shapeless
   [Generic]: https://github.com/milessabin/shapeless/wiki/Feature-overview:-shapeless-2.0.0#generic-representation-of-sealed-families-of-case-classes
