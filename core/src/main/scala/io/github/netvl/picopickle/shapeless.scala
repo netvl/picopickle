@@ -190,11 +190,11 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
   
   implicit def optionFieldTypeReaderTagged[K <: Symbol, V, T](implicit kw: Witness.Aux[K],
                                                               vr: Lazy[Reader[V]],
-                                                              dv: DefaultValue.Aux[T, K, V])
+                                                              dv: DefaultValue.Aux[T, K, Option[V]])
       : Reader[FieldType[K, Option[V]] @@@ T] =
     Reader {
       case backend.Get.Object(v) =>
-        val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value)
+        val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value.flatten)
         SourceTypeTag[T].attachTo(field[K](value))
     }
 

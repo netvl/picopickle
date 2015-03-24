@@ -482,22 +482,282 @@ io.github.netvl.picopickle.{TupleReaders, TupleWriters, TupleReaderWritersCompon
 Every serializer is an overloadable `def` or `val`, so you can easily customize serialization
 format by overriding the corresponding implicit definition with your own one.
 
-Additionally you can customize the discriminator key used by shapeless serializers by overriding
+The examples below are using `JsonPickler`, so it is implicitly assumed that something like
+
+```scala
+import io.github.netvl.picopickle.backends.jawn.JsonPickler._
+```
+
+is present in the code.
+
+### Primitives and basic types
+
+picopickle natively supports serialization of all primitive and basic types:
+
+```scala
+  writeString(1: Int)       shouldEqual "1"
+  writeString(2L: Long)     shouldEqual "2"
+  writeString(12.2: Double) shouldEqual "3"
+  writeString('a')          shouldEqual "\"a\"
+  writeString("hello")      shouldEqual "\"hello\""
+  writeString(true)         shouldEqual "true"
+  writeString(false)        shouldEqual "false"
+  writeString(null)         shouldEqual "null"
+  writeString('symbol)      shouldEqual "\"symbol\""
+```
+
+By default characters are serialized as strings, but, for example, collections backend redefines this behavior.
+
+picopickle also can serialize `Option[T]` and `Either[L, R]` as long as there are serializers for their type
+parameters:
+
+```scala
+  writeString(Some(1)) shouldEqual "[1]"
+  writeString(None)    shouldEqual "1"
+
+  writeString(Left("hello"))   shouldEqual """[0, "hello"]"""
+  writeString(Right('goodbye)) shouldEqual """[1, "goodbye"]"""
+```
+
+Optional values are also handled specially when they are a part of case class definition; see below for more
+explanation.
+
+Please note that `Either[L, R]` serialization format is not final and can change in future versions.
+
+### Numbers and accuracy
+
+Most JSON libraries represent numbers as 64-bit floats, i.e. `Double`s, but some numerical values do not fit into
+`Double`, and rounding occurs:
+
+```scala
+80000000000000000.0 shouldEqual 80000000000000008.0
+```
+
+In order to represent numbers as accurately as possible picopickle by default serializes all `Long`s which
+cannot be represented as `Double` precisely as strings:
+
+```scala
+  writeString(80000000000000000L)      shouldEqual "\"80000000000000000\""
+  writeString(Double.PositiveInfinity) shouldEqual "Infinity"
+```
+
+The same mechanism will probably be used when `BigInt`/`BigDecimal` handlers will be added.
+
+### Tuples
+
+Tuples are serialized as arrays:
+
+```scala
+  writeString((1, true, "a"))  shouldEqual "[1, true, \"a\"]"
+```
+
+The only exception is a tuple of zero items, usually called `Unit`. It is serialized as an empty object:
+
+```scala
+  writeString(())           shouldEqual "{}"
+```
+
+Naturally, all elements of tuples must be serializable as well.
+
+Tuple serializer instances are generated as a part of build process and currently only
+tuples with the length up to and including 22 are supported.
+
+### Collections
+
+Most of Scala collections library classes are supported, including all of the abstract ones below the `Iterable`:
+
+```scala
+  writeString(Iterable(1, 2, 3, 4)) shouldEqual "[1, 2, 3, 4]"
+  writeString(Seq(1, 2, 3, 4))      shouldEqual "[1, 2, 3, 4]"
+  writeString(Set(1, 2, 3, 4))      shouldEqual "[1, 2, 3, 4]"
+  writeString(Map(1 -> 2, 3 -> 4))  shouldEqual "[[1, 2], [3, 4]]"
+
+  writeString(1 :: 2 :: 3 :: Nil)   shouldEqual "[1, 2, 3]"
+  writeString(Vector(1, 2, 3))      shouldEqual "[1, 2, 3]"
+
+  writeString(Array(1, 2, 3))       shouldEqual "[1, 2, 3]"
+```
+
+Mutable collections are supported as well
+
+### Sealed trait hierarchies
+
+picopickle supports automatic serialization of sealed trait hierarchies, that is, case classes, probably
+inheriting one sealed trait. In other words, picopickle can serialize algebraic data types.
+
+The most trivial examples of sealed trait hierarchies are standalone case objects and case classes:
+
+```scala
+  case object A
+  case class B(x: Int, y: A)
+
+  writeString(A)        shouldEqual "{}"
+  writeString(B(10, A)) shouldEqual """{"x":10,"y":{}}"""
+```
+
+By default picopickle serializes case classes as objects where keys are the names of the fields. Case objects
+are serialized as empty objects.
+
+Case classes can have a sealed trait as their parent:
+
+```scala
+  sealed trait Root
+  case object A extends Root
+  case class B(x: Int, y: Boolean)
+  case class C(name: String, y: Root) extends Root
+```
+
+When you explicitly set the serialized type to `Root` (or pass it a value of type `Root` but not of some concrete
+subclass), it will be serialized as an object with a *discriminator key*:
+
+```scala
+  writeString[Root](A)           shouldEqual """{"$variant":"A"}"""
+  writeString[Root](B(10, true)) shouldEqual """{"$variant":"B","x":10,"y":true}"""
+  writeString[Root](C("me", A))  shouldEqual """{"$variant":"C","name":"me","y":{"$variant":"A"}}"""
+```
+
+If you don't request `Root` explicitly, the classes will be serialized as if they were not a part of an STH:
+
+```scala
+  writeString(B(10, true)) shouldEqual """{"x":10,"y":true}"""
+```
+
+This is not usually a problem, however, because if you are working with a sealed trait, you usually have variables
+of its type, not of its subtypes.
+
+Sealed trait hierarchies serialization is implemented using shapeless `LabelledGeneric` implicitly materialized
+instances and a bit of custom macros.
+
+### Changing the discriminator key
+
+You can customize the discriminator key used by shapeless serializers by overriding
 `discriminatorKey` field defined in `io.github.netvl.picopickle.SealedTraitDiscriminator` trait
 (its default value is `"$variant"`):
 
 ```scala
-import io.github.netvl.picopickle.backends.jawn.JsonPickler
+  import io.github.netvl.picopickle.backends.jawn.JsonPickler
 
-object CustomPickler extends JsonPickler {
-  override val discriminatorKey = "$type"
-}
+  object CustomPickler extends JsonPickler {
+    override val discriminatorKey = "$type"
+  }
+
+  // STH is from the example above
+  writeString[Root](A) shouldEqual """{"$type":"A"}"""
 ```
 
-(of course, you can extract it into a separate trait and mix it into different picklers)
+Of course, you can extract it into a separate trait and mix it into different picklers if you want.
 
-**TODO: add a list of supported types with explanations**
-**TODO: add a note on renaming fields**
+### Serialization of optional fields
+
+If a case class has a field of type `Option[T]`, then this field is serialized in a different way than
+a regular option: if the value is `None`, then the corresponding key will be absent from the serialized
+data, and if it is `Some(x)`, then the key will be present and its value will be just `x`, without an additional
+layer of an array:
+
+```scala
+  case class A(name: String, x: Option[Long])
+
+  writeString(A("absent"))            shouldEqual """{"name":"absent"}"""
+  writeString(A("present", Some(42L)) shouldEqual """{"name":"present","x":42}"""
+```
+
+This allows easy evolution of your data structures - you can always add an `Option`al field and the data serialized
+before the update will be deserialized correctly, putting a `None` into the new field.
+
+If the field type is nested options:
+
+```scala
+  case class A(x: Option[Option[Long]])
+```
+
+then the "outer" option is serialized as described in the above paragraph while the inner option is serialized
+as a possibly empty array:
+
+```scala
+  writeString(A(None))            shouldEqual """{}"""
+  writeString(A(Some(None)))      shouldEqual """{"x":[]}"""
+  writeString(A(Some(Some(10L)))) shouldEqual """{"x":[10]}"""
+```
+
+### Renaming the fields and sealed trait variants
+
+picopickle also provides an ability to rename fields and STH variant labels. This can be done by annotating
+fields with `@key` annotation:
+
+```scala
+  import io.github.netvl.picopickle.key
+
+  sealed trait Root
+  @key("0") case object A
+  @key("1") case class B(@key("a") x: Int, @key("b") y: Boolean)
+
+  writeString[Root](A)            shouldEqual """{"$variant":"0"}"""
+  writeString[Root](B(10, false)) shouldEqual """{"$variant":"1","a":10,"b":false}"""
+```
+
+### Default values of case class fields
+
+picopickle also respects default values defined in a case class, which simplifies changes in your data classes
+even more. If a field has a default value and the serialized object does not contain the corresponding field,
+the default value will be used:
+
+```scala
+  case class A(n: Int = 11)
+
+  readString[A]("""{"n":22}""") shouldEqual A(22)
+  readString[A]("""{}""")       shouldEqual A()
+```
+
+This mechanism naturally interferes with the optional fields handling. picopickle resolves the conflict in the
+following way: if no value is present at the corresponding key and a default value is set for the field, then
+it takes precedence over option handling. This affects a rather rare case when there is an optional field
+with a default value other than `None`:
+
+```scala
+  case class A(n: Option[Int] = Some(10))
+
+  readString[A]("{}") shouldEqual A(Some(10))  // not A(None)
+```
+
+This is what usually expected in such situation.
+
+### Nulls
+
+`null` value, as is widely known, tends to cause problems, and it is discouraged in idiomatic Scala code.
+Unfortunately, sometimes you need to interact with external systems which do use nulls. JSON has null value as well.
+Because of this picopickle supports nulls (it even has `BNull` as one of the fundamental backend types) but
+it also provides means to control how nulls should be handled.
+
+`Reader` and `Writer` traits do not contain any special logic to handle nulls. Instances of `Reader` and `Writer`
+created through their companion objects, however, do have such logic: they delegate null handling to a `NullHandler`
+instance provided by `NullHandlerComponent`. `NullHandler` is a trait of the following structure:
+
+```scala
+  trait NullHandler {
+    def handlesNull: Boolean
+    def toBackend[T](value: T, cont: T => backend.BValue): backend.BValue
+    def fromBackend[T](value: backend.BValue, cont: backend.BValue => T): T
+  }
+```
+
+That is, it is some kind of a preprocessor which inspects the passed value for nulls and can [de]serialize them
+specially or prohibit the [de]serialization at all.
+
+By default picopickle allows nulls everywhere (`DefaultPickler` includes `DefaultNullHandlerComponent`). That is,
+if a null is serialized, it will be represented unconditionally with `backend.BNull`, and `backend.BNull` will
+be deserialized (again, unconditionally) as a `null`.
+
+There is another `NullHandlerComponent` implementation, namely `ProhibitiveNullHandlerComponent`, which disallows
+serialization of nulls, throwing an exception if it encounters a null value either in Scala object or in a
+backend object. If you don't need to keep compatibility with some external system which uses null values it may
+make sense to extend the desired pickler, overriding the default null handler:
+
+```scala
+trait MyJsonPickler extends JsonPickler with ProhibitiveNullHandlerComponent
+```
+
+As long as you use `Reader`/`Writer` companion objects or converters to create your custom serializers,
+the null handling behavior will be consistent for all types handled by your pickler.
 
 ### Accurate numbers serialization
 
