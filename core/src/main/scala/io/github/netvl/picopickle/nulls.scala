@@ -15,7 +15,7 @@ trait NullHandlerComponent {
 trait DefaultNullHandlerComponent extends NullHandlerComponent {
   this: TypesComponent with BackendComponent =>
 
-  def nullHandler: NullHandler = new NullHandler {
+  override def nullHandler: NullHandler = new NullHandler {
     override def handlesNull: Boolean = true
 
     override def fromBackend[T](value: backend.BValue, cont: backend.BValue => T): T = value match {
@@ -33,7 +33,7 @@ trait DefaultNullHandlerComponent extends NullHandlerComponent {
 trait ProhibitiveNullHandlerComponent extends NullHandlerComponent {
   this: TypesComponent with BackendComponent =>
 
-  def nullHandler: NullHandler = new NullHandler {
+  override def nullHandler: NullHandler = new NullHandler {
     override def handlesNull: Boolean = false
 
     override def fromBackend[T](value: backend.BValue, cont: backend.BValue => T): T = value match {

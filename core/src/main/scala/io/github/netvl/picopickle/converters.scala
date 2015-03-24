@@ -270,6 +270,8 @@ trait ConvertersComponent {
           def fromBackend(bv: backend.BValue): U = c.fromBackend(bv)
           def toBackend(v: V): backend.BValue = c.toBackend(f(v))
         }
+
+      def >>[U](g: T => U): V => U = v => g(f(v))
     }
 
     implicit class ConverterProductFunctionOps[V, P <: Product](f: V => P) {
