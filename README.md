@@ -906,6 +906,23 @@ currently have special handling for deserialization errors. Expect arbitrary `No
 This is going to change in the nearest future; some special kinds of exceptions are going to be introduced,
 and safe methods like `readSafely[T](value: backend.BValue): Try[T]` are likely to be added.
 
+Limitations
+-----------
+
+picopickle does not support serializing `Any` in any form because it relies on the static knowledge of
+types being serialized. However, its design, as far as I can tell, in princple does not disallow writing
+a serializer for `Any` which would use reflection. This is not even in plans, however.
+
+It also seems that trying to serialize sealed trait hierarchies where the sealed trait itself has a type parameter
+cause the compiler to die horribly. Regular parameterized case classes work fine, however.
+
+Object graphs with circular loops are not supported and will cause stack overflows. This is not usually a problem
+because it is only possible to construct such graphs when at least a part of them is mutable (e.g. a `var` field
+or a mutable collection) which is discouraged in idiomatic Scala code.
+
+Currently picopickle does not support case classes with varags, but this will be fixed with the new shapeless
+version when it is out.
+
 
 Plans
 -----
