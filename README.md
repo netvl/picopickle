@@ -1,9 +1,6 @@
 picopickle 0.1.0
 ================
 
-(This readme is currently in flux and may reflect features unavailable in the latest released version.
-This situation is only temporary)
-
 picopickle is a serialization library for Scala. Its main features are:
 
 * Small and almost dependency-less (the core library depends only on [shapeless]).

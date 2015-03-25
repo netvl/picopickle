@@ -1,0 +1,28 @@
+This is the first public release.
+
+picopickle is a lightweight shapeless-based serialization library. It is very extensible and flexible,
+does not use reflection and supports almost arbitrary serialization formats - anything which is representable
+with JSON-like data types is supported out of the box with a minimal shim code, and writing support
+for something more complex is very simple.
+
+Currently picopickle supports serialization and deserialization to and from JSON and Scala collections,
+but more backends are planned. picopickle uses a very fast JSON parser, [jawn], to parse JSON data.
+
+  [jawn]: https://github.com/non/jawn
+
+What is available in this release:
+
+* serialization and deserialization of all basic Scala types: primitives, strings, symbols, options, eithers, etc;
+* serialization and deserialization of almost all Scala collections;
+* serialization and deserialization of almost arbitrary sealed trait hierarchies, i.e. case classes and case objects,
+  possibly implementing a sealed trait;
+* case class serialization supports renaming the fields and classes, default values and optional fields, as well as
+  circular type dependencies;
+* customizable nulls handling;
+* two backends - JSON and collections, allowing serialization and deserialization to and from JSON and collections,
+  respectively;
+* a converters library which provides a DSL for writing custom serializers in a declarative way.
+
+You can find more in the [readme].
+
+  [readme]: https://github.com/netvl/picopickle#readme
