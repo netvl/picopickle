@@ -6,9 +6,8 @@ with JSON-like data types is supported out of the box with a minimal shim code, 
 for something more complex is very simple.
 
 Currently picopickle supports serialization and deserialization to and from JSON and Scala collections,
-but more backends are planned. picopickle uses a very fast JSON parser, [jawn], to parse JSON data.
-
-  [jawn]: https://github.com/non/jawn
+but more backends are planned. picopickle uses a very fast JSON parser, [jawn](https://github.com/non/jawn), 
+to parse JSON data.
 
 What is available in this release:
 
@@ -23,12 +22,8 @@ What is available in this release:
   respectively;
 * a converters library which provides a DSL for writing custom serializers in a declarative way.
 
-picopickle is heavily inspired by [upickle], but it does not do everything I needed, and I couldn't manage to fix it -
-there were compiler errors I didn't know how to overcome. shapeless, however, provide a lot of tools, including lazy
-implicits, which made writing a serialization library a very easy task.
+picopickle is heavily inspired by [upickle](https://github.com/lihaoyi/upickle), but it does not do everything I needed, 
+and I couldn't manage to fix it - there were compiler errors I didn't know how to overcome. shapeless, however, provides
+a lot of tools, including lazy implicits, which made writing a serialization library a very easy task.
 
-  [upickle]: https://github.com/lihaoyi/upickle
-
-You can find more in the [readme].
-
-  [readme]: https://github.com/netvl/picopickle#readme
+You can find more in the [readme](https://github.com/netvl/picopickle#readme).
