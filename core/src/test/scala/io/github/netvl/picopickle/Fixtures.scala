@@ -33,4 +33,18 @@ object Fixtures {
     sealed trait Root
     case class A(x: Int, name: String = "me", enabled: Boolean = false) extends Root
   }
+
+  object WithOverloadedApplyMethod {
+    case class A(x: Int, y: String, z: Double = 12.3)
+
+    object A {
+      def apply(s: String): A = A(s.toInt, s, s.toDouble)
+    }
+  }
+
+  object WithOverloadedConstructor {
+    case class A(x: Int, y: String, z: Double = 12.3) {
+      def this(s: String) = this(s.toInt, s, s.toDouble)
+    }
+  }
 }

@@ -250,4 +250,18 @@ cases:
       - - 'A(10, null)'
         - 'Map("x" -> 10, "y" -> null)'
         - '"""{"x":10,"y":null}"""'
+  - name: case classes with an overloaded apply method in their companions
+    prepend: |
+      import WithOverloadedApplyMethod._
+    rw:
+      - - 'A(1, "2", 3.4)'
+        - 'Map("x" -> 1, "y" -> "2", "z" -> 3.4)'
+        - '"""{"x":1,"y":"2","z":3.4}"""'
+  - name: case classes with an overloaded constructor
+    prepend: |
+      import WithOverloadedConstructor._
+    rw:
+      - - 'A(1, "2", 3.4)'
+        - 'Map("x" -> 1, "y" -> "2", "z" -> 3.4)'
+        - '"""{"x":1,"y":"2","z":3.4}"""'
 

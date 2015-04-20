@@ -36,20 +36,19 @@ trait DefaultValueMacros extends ContextExtensions with SingletonTypeMacrosExten
 
     val tTpe = weakTypeOf[T]
     val tCompanionSym = companion(tTpe.typeSymbol)
-
     if (tCompanionSym == NoSymbol)
       c.abort(c.enclosingPosition, s"No companion symbol is available for type $tTpe")
 
-    val applySym = decl(tCompanionSym.typeSignature, termName("apply")).asMethod
-    if (applySym == NoSymbol)
-      c.abort(c.enclosingPosition, s"Companion symbol for type $tTpe does not have apply method")
+    val ctorSym = decl(tTpe, names.CONSTRUCTOR).asTerm.alternatives.collectFirst {
+      case ctor: MethodSymbol if ctor.isPrimaryConstructor => ctor
+    }.getOrElse(c.abort(c.enclosingPosition, s"Could not find the primary constructor for type $tTpe"))
 
     val vTpe = weakTypeOf[V]
 
-    val defaultMethodName = paramLists(applySym).headOption.flatMap { argSyms =>
+    val defaultMethodName = paramLists(ctorSym).headOption.flatMap { argSyms =>
       argSyms.map(_.asTerm).zipWithIndex.collect {
         case (p, i) if p.isParamWithDefault && p.name.toString == fieldName && p.typeSignature =:= vTpe =>
-          termName(s"apply$$default$$${i+1}")
+          termName(s"$$lessinit$$greater$$default$$${i+1}")  // TODO: not sure if this couldn't be made more correct
       }.headOption
     }
 
