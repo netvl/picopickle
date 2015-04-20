@@ -1,4 +1,4 @@
-picopickle 0.1.0
+picopickle 0.1.1
 ================
 
 picopickle is a serialization library for Scala. Its main features are:
@@ -23,7 +23,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.1"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -47,7 +47,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.1"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -841,7 +841,7 @@ picopickle has several "official" backends. One of them, provided by `picopickle
 into a tree of collections. This backend is available immediately with only the `core` dependency:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.1"
 ```
 
 In this backend the following AST mapping holds:
@@ -879,7 +879,7 @@ Another official backend is used for conversion to and from JSON. JSON parsing i
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.1"
 ```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
@@ -937,6 +937,10 @@ Plans
 
 Changelog
 ---------
+
+### 0.1.1
+
+* Fixed handling of classes with overloaded `apply` method in companions (#1)
 
 ### 0.1.0
 

@@ -1,0 +1,3 @@
+This is a bugfix release.
+
+* Fixed a problem with classes whose companion objects have overloaded `apply` methods.
