@@ -1,4 +1,4 @@
-picopickle 0.1.1
+picopickle 0.1.2
 ================
 
 picopickle is a serialization library for Scala. Its main features are:
