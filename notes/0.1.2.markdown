@@ -1,0 +1,1 @@
+Updated Scala 2.10 minor version (was 2.10.4, became 2.10.5). This matters because shapeless depends on the minor version of Scala 2.10.
