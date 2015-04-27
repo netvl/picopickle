@@ -938,6 +938,10 @@ Plans
 Changelog
 ---------
 
+### 0.1.2
+
+* Updated Scala 2.10 minor version (4 -> 5)
+
 ### 0.1.1
 
 * Fixed handling of classes with overloaded `apply` method in companions (#1)
