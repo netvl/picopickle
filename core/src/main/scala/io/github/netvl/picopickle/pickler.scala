@@ -1,9 +1,15 @@
 package io.github.netvl.picopickle
 
 trait Pickler {
-  this: BackendComponent with TypesComponent =>
+  self: BackendComponent with TypesComponent =>
   def read[T: Reader](value: backend.BValue): T
   def write[T: Writer](value: T): backend.BValue
+
+  class Serializer[T: Reader: Writer] {
+    def read(value: backend.BValue): T = self.read(value)
+    def write(value: T): backend.BValue = self.write(value)
+  }
+  def serializer[T: Reader: Writer] = new Serializer[T]
 }
 
 trait DefaultPickler

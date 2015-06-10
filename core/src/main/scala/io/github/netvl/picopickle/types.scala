@@ -252,7 +252,7 @@ trait TypesComponent {
   type ReadWriter[T] = Reader[T] with Writer[T]
 
   object ReadWriter {
-    def apply[T](r: Reader[T], w: Writer[T]): ReadWriter[T] = new Reader[T] with Writer[T] {
+    def apply[T](implicit r: Reader[T], w: Writer[T]): ReadWriter[T] = new Reader[T] with Writer[T] {
       override def canRead(value: backend.BValue) = r.canRead(value)
       override def read(value: backend.BValue) = r.read(value)
       override def write0(value: T, acc: Option[backend.BValue]) = w.write0(value, acc)
