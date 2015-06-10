@@ -21,6 +21,10 @@ trait DefaultPickler
   with DefaultSealedTraitDiscriminatorComponent
   with PrimitiveReaderWritersComponent
   with CollectionReaderWritersComponent
+  with ObjectKeyTypesComponent
+  with ObjectKeyReaderWritersComponent
+  with MapPicklingComponent
+  with MapPicklingEnabledByDefault
   with TupleReaderWritersComponent
   with ConvertersComponent
   with TypesComponent {

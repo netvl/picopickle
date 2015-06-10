@@ -1,14 +1,53 @@
 package io.github.netvl.picopickle
 
+import scala.annotation.implicitNotFound
 import scala.reflect.ClassTag
 import scala.{collection => coll}
 import scala.collection.{mutable => mut}
 import scala.collection.{immutable => imm}
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
+import scala.language.experimental.macros
+
+trait MapPicklingComponent {
+  @implicitNotFound("Can't [un]pickle a map with keys of type ${T} neither as an object nor as an array of tuples; " +
+    "either define an `ObjectKeyReadWriter[${T}]` converter or explicitly allow " +
+    "serializing this map as an array of tuples via putting " +
+    "an implicit value returned by `allowMapPickling[${T}]` in scope")
+  sealed class MapPicklingIsAllowed[T]
+  protected object MapPicklingIsAllowed extends MapPicklingIsAllowed[Nothing]
+  def allowMapPickling[T]: MapPicklingIsAllowed[T] =
+    MapPicklingIsAllowed.asInstanceOf[MapPicklingIsAllowed[T]]
+  
+  def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T]
+}
+
+trait MapPicklingEnabledByDefault extends MapPicklingComponent {
+  // by default it is enabled for all key types
+  override implicit def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T] =
+    allowMapPickling[T]
+}
+
+trait MapPicklingDisabledByDefault extends MapPicklingComponent {
+  this: ObjectKeyTypesComponent =>
+
+  // here it is disabled via an aborting macro
+  override implicit def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T] = macro MapPicklingDisabledByDefaultMacros.killItself[T]
+
+  // but another implicit value is defined for all keys which are readable/writable as object keys
+  implicit def mapPicklingIsAllowedForAppropriateKeyTypes[T: ObjectKeyReader: ObjectKeyWriter] =
+    allowMapPickling[T]
+}
+
+object MapPicklingDisabledByDefaultMacros {
+  import BinaryVersionSpecificDefinitions._
+
+  def killItself[T: c.WeakTypeTag](c: Context): c.Expr[T] =
+    c.abort(c.enclosingPosition, "aborting compilation of an offending implicit")
+}
 
 trait CollectionWriters {
-  this: BackendComponent with TypesComponent =>
+  this: ObjectKeyTypesComponent with MapPicklingComponent with BackendComponent with TypesComponent =>
 
   protected final def mkIterableWriter[T, C[_] <: Iterable[_]](implicit w: Writer[T]): Writer[C[T]] =
     Writer.fromPF0 { c => {
@@ -18,12 +57,12 @@ trait CollectionWriters {
     }}
 
   protected final def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]]
-      (implicit wa: Writer[A], wb: Writer[B], wab: Writer[(A, B)], ev: A <:< String): Writer[M[A, B]] =
-    if (ev != null) Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
+      (implicit wa: Writer[A], wb: Writer[B], wab: Writer[(A, B)], kw: ObjectKeyWriter[A]): Writer[M[A, B]] =
+    if (kw != null) Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case Some(backend.Get.Object(obj)) => m.foldLeft(obj) { (acc, t) =>
-        backend.setObjectKey(acc, t._1.asInstanceOf[String], wb.write(t._2))
+        backend.setObjectKey(acc, kw.write(t._1), wb.write(t._2))
       }
-      case None => backend.makeObject(m.map { case (k, v) => (k.asInstanceOf[String], wb.write(v)) }.toMap)
+      case None => backend.makeObject(m.map { case (k, v) => (kw.write(k), wb.write(v)) }.toMap)
     }}
     else Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case None =>
@@ -67,17 +106,25 @@ trait CollectionWriters {
   implicit def linkedListWriter[T: Writer]: Writer[mut.LinkedList[T]] = mkIterableWriter[T, mut.LinkedList]
   implicit def linkedHashSetWriter[T: Writer]: Writer[mut.LinkedHashSet[T]] = mkIterableWriter[T, mut.LinkedHashSet]
 
-  implicit def mapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[coll.Map[A, B]] = mkMapWriter[A, B, coll.Map]
-  implicit def immMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.Map[A, B]] = mkMapWriter[A, B, imm.Map]
-  implicit def mutMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[mut.Map[A, B]] = mkMapWriter[A, B, mut.Map]
+  implicit def mapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                               kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[coll.Map[A, B]] = mkMapWriter[A, B, coll.Map]
+  implicit def immMapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                                  kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[imm.Map[A, B]] = mkMapWriter[A, B, imm.Map]
+  implicit def mutMapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                               kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[mut.Map[A, B]] = mkMapWriter[A, B, mut.Map]
 
-  implicit def immHashMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.HashMap[A, B]] = mkMapWriter[A, B, imm.HashMap]
-  implicit def mutHashMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
+  implicit def immHashMapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                                      kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[imm.HashMap[A, B]] = mkMapWriter[A, B, imm.HashMap]
+  implicit def mutHashMapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                                      kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[mut.HashMap[A, B]] = mkMapWriter[A, B, mut.HashMap]
 
-  implicit def treeMapWriter[A: Writer: Ordering, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
-  implicit def listMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, wab: Writer[(A, B)]): Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
+  implicit def treeMapWriter[A: Writer: Ordering, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                                             kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[imm.TreeMap[A, B]] = mkMapWriter[A, B, imm.TreeMap]
+  implicit def listMapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                                   kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[imm.ListMap[A, B]] = mkMapWriter[A, B, imm.ListMap]
 
-  implicit def linkedHashMapWriter[A: Writer, B: Writer](implicit ev: A <:< String = null, rab: Writer[(A, B)]): Writer[mut.LinkedHashMap[A, B]] = mkMapWriter[A, B, mut.LinkedHashMap]
+  implicit def linkedHashMapWriter[A: Writer, B: Writer](implicit allowed: MapPicklingIsAllowed[A], 
+                                                         kw: ObjectKeyWriter[A] = null, wab: Writer[(A, B)]): Writer[mut.LinkedHashMap[A, B]] = mkMapWriter[A, B, mut.LinkedHashMap]
 
   implicit def arrayWriter[T: Writer]: Writer[Array[T]] = Writer {
     case arr => iterableWriter[T].write(arr)
@@ -85,7 +132,7 @@ trait CollectionWriters {
 }
 
 trait CollectionReaders {
-  this: BackendComponent with TypesComponent =>
+  this: ObjectKeyTypesComponent with MapPicklingComponent with BackendComponent with TypesComponent =>
 
   protected final def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T],
                                                                cbf: CanBuildFrom[C[T], T, C[T]]): Reader[C[T]] =
@@ -94,13 +141,13 @@ trait CollectionReaders {
     }
 
   protected final def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]]
-      (implicit ra: Reader[A], rb: Reader[B], ev: A <:< String, rab: Reader[(A, B)],
+      (implicit ra: Reader[A], rb: Reader[B], kr: ObjectKeyReader[A], rab: Reader[(A, B)],
        cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
-    if (ev != null) Reader {
+    if (kr != null) Reader {
       case backend.Extract.Object(m) =>
         val builder = cbf.apply()
         m.foreach {
-          case (k, v) => builder += (k.asInstanceOf[A] -> rb.read(v))
+          case (k, v) => builder += (kr.read(k) -> rb.read(v))
         }
         builder.result()
     } else Reader {
@@ -145,17 +192,25 @@ trait CollectionReaders {
   implicit def linkedListReader[T: Reader]: Reader[mut.LinkedList[T]] = mkIterableReader[T, mut.LinkedList]
   implicit def linkedHashSetReader[T: Reader]: Reader[mut.LinkedHashSet[T]] = mkIterableReader[T, mut.LinkedHashSet]
 
-  implicit def mapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[coll.Map[A, B]] = mkMapReader[A, B, coll.Map]
-  implicit def immMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.Map[A, B]] = mkMapReader[A, B, imm.Map]
-  implicit def mutMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[mut.Map[A, B]] = mkMapReader[A, B, mut.Map]
+  implicit def mapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                               kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[coll.Map[A, B]] = mkMapReader[A, B, coll.Map]
+  implicit def immMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                  kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[imm.Map[A, B]] = mkMapReader[A, B, imm.Map]
+  implicit def mutMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                  kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[mut.Map[A, B]] = mkMapReader[A, B, mut.Map]
 
-  implicit def immHashMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.HashMap[A, B]] = mkMapReader[A, B, imm.HashMap]
-  implicit def mutHashMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
+  implicit def immHashMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                      kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[imm.HashMap[A, B]] = mkMapReader[A, B, imm.HashMap]
+  implicit def mutHashMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                      kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[mut.HashMap[A, B]] = mkMapReader[A, B, mut.HashMap]
 
-  implicit def treeMapReader[A: Reader: Ordering, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
-  implicit def listMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
+  implicit def treeMapReader[A: Reader: Ordering, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                             kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[imm.TreeMap[A, B]] = mkMapReader[A, B, imm.TreeMap]
+  implicit def listMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                   kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[imm.ListMap[A, B]] = mkMapReader[A, B, imm.ListMap]
 
-  implicit def linkedHashMapReader[A: Reader, B: Reader](implicit ev: A <:< String = null, rab: Reader[(A, B)]): Reader[mut.LinkedHashMap[A, B]] = mkMapReader[A, B, mut.LinkedHashMap]
+  implicit def linkedHashMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
+                                                         kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[mut.LinkedHashMap[A, B]] = mkMapReader[A, B, mut.LinkedHashMap]
 
   implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader {
     case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
@@ -163,5 +218,5 @@ trait CollectionReaders {
 }
 
 trait CollectionReaderWritersComponent extends CollectionReaders with CollectionWriters {
-  this: BackendComponent with TypesComponent =>
+  this: ObjectKeyTypesComponent with MapPicklingComponent with BackendComponent with TypesComponent =>
 }
