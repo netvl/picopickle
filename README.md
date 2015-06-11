@@ -1,4 +1,4 @@
-picopickle 0.1.2
+picopickle 0.1.3
 ================
 
 picopickle is a serialization library for Scala. Its main features are:
@@ -23,7 +23,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.2"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.3"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -47,7 +47,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.2"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.3"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -114,7 +114,7 @@ provides everything necessary for the serialization via a glob import:
 ```scala
 import some.package.SomePickler._
  
-write("Hello")
+write("Hello") shouldEqual SomePicklerBackend.StringValue("Hello")
 ```
 
 The core library and the Jawn backend library provide default picklers, so if you don't need
@@ -126,7 +126,8 @@ import io.github.netvl.picopickle.backends.collections.CollectionsPickler._
  
 case class A(x: Int, y: String)
  
-assert(write(A(10, "hi")) == Map("x" -> 10, "y" -> "hi"))
+write(A(10, "hi")) shouldEqual Map("x" -> 10, "y" -> "hi")
+read[A](Map("x" -> 10, "y" -> "hi")) shouldEqual A(10, "hi")
 ```
 
 Jawn-based pickler also provides additional functions, `readString()`/`writeString()` and
@@ -138,16 +139,54 @@ import io.github.netvl.picopickle.backends.jawn.JsonPickler._
  
 case class A(x: Int, y: String)
  
-assert(writeString(A(10, "hi")) == """{"x":10,"y":"hi"}""")
+writeString(A(10, "hi")) shouldEqual """{"x":10,"y":"hi"}"""
+readString[A]("""{"x":10,"y":"hi"}""") shouldEqual A(10, "hi")
 ```
 
 Currently the string JSON representation is not prettified (but prettification may be implemented in later versions).
+
+### Serializer objects
+
+Sometimes you need to work with serialization and deserializaton in the same piece of code (e.g. writing and reading
+data from database). Then it would be convenient to have `read` and `write` methods fixed for some specific type,
+both for correctness sake and in order to instantiate corresponding readers and writers in one place (which potentially
+may speed up the compilation).
+
+picopickle provides a special serializer class which can be constructed for any type which has `Reader` and `Writer`
+instances. This class provides `read` and `write` methods specified for the type which this serializer is created for:
+
+```scala
+import io.github.netvl.picopickle.backends.collections.CollectionsPickler._
+ 
+case class A(x: Int, y: String)
+
+val aSerializer = serializer[A]
+ 
+aSerializer.write(A(10, "hi")) shouldEqual Map("x" -> 10, "y" -> "hi")
+// aSerializer.write("whatever")  // won't compile - write() accepts values of type A only
+
+aSerializer.read(Map("x" -> 10, "y" -> "hi") shouldEqual A(10, "hi")
+// val x: String = aSerializer.read("whatever")  // won't compile - read() returns values of type A
+```
+
+Jawn-based pickler extends this class to provide `readString` and `writeString` methods:
+
+```scala
+import io.github.netvl.picopickle.backends.jawn.JsonPickler._
+
+case class A(x: Int, y: String)
+
+val aSerializer = serializer[A]
+
+aSerializer.writeString(A(10, "hi")) shouldEqual """{"x":10,"y":"hi"}"""
+aSerializer.readString("""{"x":10,"y":"hi"}""") shouldEqual A(10, "hi")
+```
 
 ### Custom picklers
 
 It is possible that you would want to define custom serializers for some of your
 types. In that case you can define custom serializer instances in a trait which "depends" on
-`BackendComponent` and `TypesComponent`:
+`BackendComponent` and `TypesComponent` via a self type annotation:
 
 ```scala
 import io.github.netvl.picopickle.{BackendComponent, TypesComponent}
@@ -277,7 +316,7 @@ object MyPickler extends MyPickler
 
 Naturally, you can choose not to merge the `DefaultPickler` fully into your pickler if you don't want to, for example,
 if you don't need the automatic writers materialization for sealed trait hierarchies. In that case you can
-mix only those traits you need. See `DefaultPickler` documentation to find out which components it consists of
+mix in only those traits you need. See `DefaultPickler` documentation to find out which components it consists of
 (**TODO**).
 
 After this `MyPickler.read` and `MyPickler.write` methods will work with your backend representation.
@@ -289,6 +328,11 @@ They are responsible for converting arbitrary types to their backend representat
 The most basic way to construct custom serializers is to use `apply` method on `Reader` and `Writer` 
 companion objects, which take `PartialFunction[backend.BValue, T]` and `PartialFunction[T, backend.BValue]`, 
 respectively (you can find an example of both above).
+
+(Terminology note: `Writer` and `Reader` are called *serializers*, while typed serialization objects described above,
+that is, the ones returned by the call of `serializer[T]` method, are called *serializer objects*. While related,
+these are different things. Serializer objects are completely optional, you won't have to use them if you don't want;
+on the other hand, serializers are the key entities in picopickle and you can't do away with them.)
 
 Despite that `Writer` takes a partial function, it still should be able to serialize any values
 of its corresponding type. `Reader`, however, can fail to match the backend representation. Currently
@@ -620,10 +664,109 @@ if the map has string keys (which is determined statically), it will be serializ
 writeString(Map("a" -> 1, "b" -> 2)) shouldEqual """{"a":1,"b":2}"""
 ```
 
+The above behavior of serializing maps with string keys is the default, but it can be extended. See below.
+
 If you're using abstract collection types like `Seq`, `Set` or `Map`, picopickle will work flawlessly. If you
 use concrete collection types, however, there could be problems. picopickle has a lot of instances for most of
 the main concrete implementations, but not for all of them. If you need something which is not present in the
 library, feel free to file an issue.
+
+### Map serialization with non-string keys
+
+JSON-like languages usually don't allow using non-string values as object keys, and picopickle enforces this
+restriction by its `BObject` representation which requires string keys. However, this is sometimes overly restrictive,
+especially in a richly typed language like Scala and because of common patterns which follow from this.
+
+It is not unusual for Scala projects to have a newtype or several for `String`, for example, for different
+kind of identifiers:
+
+```scala
+case class PostId(id: String)
+case class UserId(id: String)
+```
+
+Alternatively, it is possible to have such simple value class which does not wrap a `String` but which can easily
+be converted to and from a string:
+
+```scala
+case class EntityPath(elems: Vector[String]) {
+  override def toString = elems.mkString("/")
+}
+object EntityPath {
+  def fromString(s: String) = EntityPath(s.split("/").toVector)
+}
+```
+
+It is sometimes desirable to have these classes as keys in maps:
+
+```scala
+type UserMap = Map[UserId, User]
+type EntityLocations = Map[EntityPath, Entity]
+```
+
+One would naturally want for these maps to have an object-based representation (instead of an array of arrays)
+because keys are easily converted to and from strings. In picopickle, however, only maps of type `Map[String, T]`
+can be directly serialized as objects.
+
+To allow this kind of pattern, picopickle provides a way to define custom converters for map keys. When a map
+with keys of type `T` is serialized or deserialized, if there is an instance of type 
+`ObjectKeyReader[T]`/`ObjectKeyWriter[T]`/`ObjectKeyReadWriter[T]` in scope, then it will be used to obtain
+a `String` from `T` (or vice versa) which will then be used as an object key:
+
+```scala
+
+implicit val userIdObjectKeyReadWriter = ObjectKeyReadWriter(_.id, UserId)
+// below a `_.toString` conversion is implicitly used
+implicit val entityPathObjectKeyReadWriter = ObjectKeyReadWriter(EntityPath.fromString)
+
+write[UserMap](Map(UserId("u1") -> ..., UserId("u2") -> ...)) shouldEqual 
+  Map("u1" -> ..., "u2" -> ...)
+  
+write[EntityLocations](Map(EntityPath(Vector("a", "b")) -> ..., EntityPath(Vector("a", "c")) -> ...)) shouldEqual
+  Map("a/b" -> ..., "a/c" -> ...)
+
+// reading works as well
+```
+
+However, with this flexibility in large codebases where one pickler is shared by lots of different classes it is easy 
+to accidentally add a conversion which would break serialization format in some other part of the project. To
+allow controlling this picopickle supports *disabling* of automatic map serialization for unknown key types.
+You would need then to define an object key serializer for this particular type or explicitly allow maps with
+this type as a key to be serialized as an array of arrays. You need to create a custom pickler and mix 
+`MapPicklingDisabledByDefault` trait into it:
+
+```scala
+object CustomPickler extends CollectionsPickler with MapPicklingDisabledByDefault
+
+// won't compile because there is no ObjectKeyWriter[Int] in scope and serialization of maps
+// with Int keys is not allowed
+write(Map(1 -> "a", 2 -> "b"))  
+
+// ---
+
+object CustomPickler extends CollectionsPickler with MapPicklingDisabledByDefault {
+  implicit val intObjectKeyReadWriter = ObjectKeyReadWriter(_.toInt)
+}
+
+// works because we have defined an object key serializer for Int
+write(Map(1 -> "a", 2 -> "b")) shouldEqual Map("1" -> "a", "2" -> "b")
+
+// ---
+
+object CustomPickler extends CollectionsPickler with MapPicklingDisabledByDefault {
+  implicit val intObjectKeyAllowed = allowMapPicklingWithKeyOfType[Int]
+}
+
+// works because we explicitly allowed maps of type Map[Int, T] to be serialized as an array of arrays
+write(Map(1 -> "a", 2 -> "b")) shouldEqual Vector(Vector(1, "a"), Vector(1, "b"))
+```
+
+Note that currently even if map pickling is allowed like in the above piece of code, putting an object key serializer
+for the corresponding type will force picopickle to use it, allowing potential unexpected changes of
+serialization format like described above. However: first, this will be fixed in future versions; second,
+it still disallows one to *accidentally* serialize maps as arrays of arrays and then have broken format
+by deliberate introduction of keys serializer, which looks like the most likely possibility of introducing
+such breaking changes.
 
 ### Sealed trait hierarchies
 
@@ -686,7 +829,7 @@ object CustomPickler extends JsonPickler {
 }
 
 // STH is from the example above
-writeString[Root](A) shouldEqual """{"$type":"A"}"""
+CustomPickler.writeString[Root](A) shouldEqual """{"$type":"A"}"""
 ```
 
 Of course, you can extract it into a separate trait and mix it into different picklers if you want.
@@ -841,7 +984,7 @@ picopickle has several "official" backends. One of them, provided by `picopickle
 into a tree of collections. This backend is available immediately with only the `core` dependency:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.2"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.3"
 ```
 
 In this backend the following AST mapping holds:
@@ -879,7 +1022,7 @@ Another official backend is used for conversion to and from JSON. JSON parsing i
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.2"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.3"
 ```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
@@ -937,6 +1080,11 @@ Plans
 
 Changelog
 ---------
+
+### 0.1.3
+
+* Added serializer object feature (#5)
+* Added support for serializing arbitrary types as map keys provided there is a converter (#4)
 
 ### 0.1.2
 

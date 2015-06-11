@@ -16,7 +16,7 @@ trait MapPicklingComponent {
     "an implicit value returned by `allowMapPicklingWithKeyOfType[${T}]` in scope")
   sealed class MapPicklingIsAllowed[T]
   protected object MapPicklingIsAllowed extends MapPicklingIsAllowed[Nothing]
-  def allowMapPicklingWithKeyOfType[T]: MapPicklingIsAllowed[T] =
+  def allowMapPicklingWithKeysOfType[T]: MapPicklingIsAllowed[T] =
     MapPicklingIsAllowed.asInstanceOf[MapPicklingIsAllowed[T]]
   
   def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T]
@@ -25,7 +25,7 @@ trait MapPicklingComponent {
 trait MapPicklingEnabledByDefault extends MapPicklingComponent {
   // by default it is enabled for all key types
   override implicit def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T] =
-    allowMapPicklingWithKeyOfType[T]
+    allowMapPicklingWithKeysOfType[T]
 }
 
 trait MapPicklingDisabledByDefault extends MapPicklingComponent {
@@ -36,7 +36,7 @@ trait MapPicklingDisabledByDefault extends MapPicklingComponent {
 
   // but another implicit value is defined for all keys which are readable/writable as object keys
   implicit def mapPicklingIsAllowedForAppropriateKeyTypes[T: ObjectKeyReader: ObjectKeyWriter] =
-    allowMapPicklingWithKeyOfType[T]
+    allowMapPicklingWithKeysOfType[T]
 }
 
 object MapPicklingDisabledByDefaultMacros {
