@@ -13,10 +13,10 @@ trait MapPicklingComponent {
   @implicitNotFound("Can't [un]pickle a map with keys of type ${T} neither as an object nor as an array of tuples; " +
     "either define an `ObjectKeyReadWriter[${T}]` converter or explicitly allow " +
     "serializing this map as an array of tuples via putting " +
-    "an implicit value returned by `allowMapPickling[${T}]` in scope")
+    "an implicit value returned by `allowMapPicklingWithKeyOfType[${T}]` in scope")
   sealed class MapPicklingIsAllowed[T]
   protected object MapPicklingIsAllowed extends MapPicklingIsAllowed[Nothing]
-  def allowMapPickling[T]: MapPicklingIsAllowed[T] =
+  def allowMapPicklingWithKeyOfType[T]: MapPicklingIsAllowed[T] =
     MapPicklingIsAllowed.asInstanceOf[MapPicklingIsAllowed[T]]
   
   def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T]
@@ -25,7 +25,7 @@ trait MapPicklingComponent {
 trait MapPicklingEnabledByDefault extends MapPicklingComponent {
   // by default it is enabled for all key types
   override implicit def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T] =
-    allowMapPickling[T]
+    allowMapPicklingWithKeyOfType[T]
 }
 
 trait MapPicklingDisabledByDefault extends MapPicklingComponent {
@@ -36,14 +36,14 @@ trait MapPicklingDisabledByDefault extends MapPicklingComponent {
 
   // but another implicit value is defined for all keys which are readable/writable as object keys
   implicit def mapPicklingIsAllowedForAppropriateKeyTypes[T: ObjectKeyReader: ObjectKeyWriter] =
-    allowMapPickling[T]
+    allowMapPicklingWithKeyOfType[T]
 }
 
 object MapPicklingDisabledByDefaultMacros {
   import BinaryVersionSpecificDefinitions._
 
   def killItself[T: c.WeakTypeTag](c: Context): c.Expr[T] =
-    c.abort(c.enclosingPosition, "aborting compilation of an offending implicit")
+    c.abort(c.enclosingPosition, "aborting expansion of an offending implicit")
 }
 
 trait CollectionWriters {
