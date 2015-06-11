@@ -264,4 +264,10 @@ cases:
       - - 'A(1, "2", 3.4)'
         - 'Map("x" -> 1, "y" -> "2", "z" -> 3.4)'
         - '"""{"x":1,"y":"2","z":3.4}"""'
-
+  - name: maps with non-string keys but with a defined object key serializer
+    prepend: |
+      implicit val intObjectKeyRW = ObjectKeyReadWriter(_.toInt)
+    rw:
+      - - 'Map(1 -> "a", 2 -> "b")'
+        - 'Map("1" -> "a", "2" -> "b")'
+        - '"""{"1":"a","2":"b"}"""'

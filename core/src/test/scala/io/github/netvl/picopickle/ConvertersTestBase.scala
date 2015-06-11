@@ -24,7 +24,7 @@ trait ConvertersTestBase extends FreeSpec with ShouldMatchers with DefaultPickle
   def backendName: String = "backend"
 
   "Converters" - {
-    s"should convert to and from $backendName representation" - {
+    s"should convert to and from the $backendName representation" - {
       "null" in {
         `null`.isDefinedAt(makeNull) shouldBe true
         (`null`.fromBackend(makeNull): Any) shouldEqual (null: Any)
