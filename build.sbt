@@ -8,8 +8,9 @@ val commonCommonSettings = Seq(
   autoAPIMappings := true
 )
 
-val commonSettings = bintrayPublishSettings ++ commonCommonSettings ++ Seq(
-  name in bintray.Keys.bintray := "picopickle",
+val commonSettings = commonCommonSettings ++ Seq(
+  bintrayPackage := "picopickle",
+  bintrayReleaseOnPublish in ThisBuild := false,
 
   licenses := Seq("MIT" -> url("https://raw.githubusercontent.com/netvl/picopickle/master/LICENSE")),
   homepage := Some(url("https://github.com/netvl/picopickle")),
