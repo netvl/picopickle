@@ -1,0 +1,11 @@
+Added two new features - serialization objects and object key serialization:
+
+* serialization objects allow one to "specialize" generic `read()`/`write()` pickler
+  methods for some specific type for convenience and type safety;
+* object key serialization makes it possible to serialize maps with arbitrary keys
+  as backend objects (which currently is possible only for string keys) provided that
+  there is a special serializer for key type is present in implicit scope. It is also now
+  possible to disallow the default behavior when maps are serialized as arrays of arrays
+  and only enable it explicitly for specific key types.
+  
+More information can be found in the [readme](https://github.com/netvl/picopickle#readme).
