@@ -56,6 +56,7 @@ lazy val core = project
     sourceGenerators in Compile += task[Seq[File]] {
       val outFile = (sourceManaged in Compile).value / "io" / "github" / "netvl" / "picopickle" / "generated.scala"
 
+      // TODO: this probably could be replaced with shapeless
       val tupleInstances = (1 to 22).map { i =>
         def mkCommaSeparated(f: Int => String) = (1 to i).map(f).mkString(", ")
         val types = mkCommaSeparated(j => s"T$j")

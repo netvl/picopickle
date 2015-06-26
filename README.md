@@ -1,4 +1,4 @@
-picopickle 0.1.3
+picopickle 0.1.4
 ================
 
 picopickle is a serialization library for Scala. Its main features are:
@@ -8,8 +8,8 @@ picopickle is a serialization library for Scala. Its main features are:
   custom *backends*, that is, you can use the same library for the different serialization formats
   (collections, JSON, BSON, etc.); other parts of the serialization behavior like nulls handling
   can also be customized.
-* Flexibility and convenience: default serialization format is fine for most uses, but it can
-  be customized almost arbitrarily with the support of a convenient converters DSL.
+* Flexibility and convenience: the default serialization format is fine for most uses, but it can
+  be customized almost arbitrarily with support from a convenient converters DSL.
 * Static serialization without reflection: shapeless [`Generic`][Generic] macros are used to
   provide serializers for arbitrary types, which means that no reflection is used.
 
@@ -23,7 +23,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.3"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.4"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -47,7 +47,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.3"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.4"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -95,12 +95,8 @@ case class B(x: Int, b: Option[B]) extends Root  // depends on itself
 case class C(next: Root) extends Root  // depends on the sealed trait
 ```
 
-picopickle also supports default values in case classes and renaming of fields or sealed trait descendants
-with a bit of custom macros.
-
-Currently picopickle does not support case classes with variable arguments, because they are
-not supported by shapeless `Generic`. This is going to change when the next shapeless version
-is released.
+picopickle also supports default values and variable arguments in case classes and renaming of fields 
+or sealed trait descendants with a bit of custom macros.
 
 Usage
 -----
@@ -321,7 +317,7 @@ mix in only those traits you need. See `DefaultPickler` documentation to find ou
 
 After this `MyPickler.read` and `MyPickler.write` methods will work with your backend representation.
 
-#### Instantiating custom serializers
+#### Creating custom serializers
 
 picopickle defines `Writer` and `Reader` basic types in `TypesComponent` which are called *serializers*. 
 They are responsible for converting arbitrary types to their backend representation and back, respectively. 
@@ -714,7 +710,6 @@ with keys of type `T` is serialized or deserialized, if there is an instance of 
 a `String` from `T` (or vice versa) which will then be used as an object key:
 
 ```scala
-
 implicit val userIdObjectKeyReadWriter = ObjectKeyReadWriter(_.id, UserId)
 // below a `_.toString` conversion is implicitly used
 implicit val entityPathObjectKeyReadWriter = ObjectKeyReadWriter(EntityPath.fromString)
@@ -804,7 +799,7 @@ writeString[Root](B(10, true)) shouldEqual """{"$variant":"B","x":10,"y":true}""
 writeString[Root](C("me", A))  shouldEqual """{"$variant":"C","name":"me","y":{"$variant":"A"}}"""
 ```
 
-If you don't request `Root` explicitly, the classes will be serialized as if they are not a part of an STH:
+If you don't request `Root` explicitly, the classes will be serialized as if they were not a part of an STH:
 
 ```scala
 writeString(B(10, true)) shouldEqual """{"x":10,"y":true}"""
@@ -912,9 +907,16 @@ This is what usually expected in such situation.
 
 ### Varargs
 
-Currently picopickle does not support reading or writing case classes with variable arguments because shapeless
-`Generic` (and thus `LabelledGeneric`) do not support such classes in 2.1.0. This is already fixed in shapeless master,
-and when the next shapeless version is released, picopickle will be able to handle such classes as well.
+Since version 0.1.4 picopickle supports reading and writing case classes with variable arguments. All of
+the arguments passed to such case class will be serialized as an array:
+
+```scala
+case class A(x: Int*)
+
+writeString(A(1, 2, 3)) shouldEqual """{"x":[1,2,3]}"""
+```
+
+Naturally, all elements of this array are serialized with their respective serializers.
 
 ### Nulls
 
@@ -984,7 +986,7 @@ picopickle has several "official" backends. One of them, provided by `picopickle
 into a tree of collections. This backend is available immediately with only the `core` dependency:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.3"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.4"
 ```
 
 In this backend the following AST mapping holds:
@@ -1022,7 +1024,7 @@ Another official backend is used for conversion to and from JSON. JSON parsing i
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.3"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.4"
 ```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
@@ -1053,18 +1055,15 @@ Limitations
 -----------
 
 picopickle does not support serializing `Any` in any form because it relies on the static knowledge of
-types being serialized. However, its design, as far as I can tell, in princple does not disallow writing
+types being serialized. However, its design, as far as I can tell, in principle does not disallow writing
 a serializer for `Any` which would use reflection. This is not even in plans, however.
 
 It also seems that trying to serialize sealed trait hierarchies where the sealed trait itself has a type parameter
-cause the compiler to die horribly. Regular parameterized case classes work fine, however.
+causes the compiler to die horribly. Regular parameterized case classes work fine, however.
 
 Object graphs with circular loops are not supported and will cause stack overflows. This is not usually a problem
 because it is only possible to construct such graphs when at least a part of them is mutable (e.g. a `var` field
 or a mutable collection) which is discouraged in idiomatic Scala code.
-
-Currently picopickle does not support case classes with varags, but this will be fixed with the new shapeless
-version when it is out.
 
 
 Plans
