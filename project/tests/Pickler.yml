@@ -271,3 +271,10 @@ cases:
       - - 'Map(1 -> "a", 2 -> "b")'
         - 'Map("1" -> "a", "2" -> "b")'
         - '"""{"1":"a","2":"b"}"""'
+  - name: case classes with varargs
+    prepend: |
+      import WithVarargs._
+    rw:
+      - - 'A(1, "a", "b", "c")'
+        - 'Map("x" -> 1, "y" -> Vector("a", "b", "c"))'
+        - '"""{"x":1,"y":["a","b","c"]}"""'

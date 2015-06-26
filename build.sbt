@@ -1,9 +1,9 @@
-crossScalaVersions := Seq("2.10.5", "2.11.5")
+crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.1.3",
-  scalaVersion := "2.11.5",
+  version := "0.1.4",
+  scalaVersion := "2.11.7",
 
   autoAPIMappings := true
 )
@@ -34,14 +34,15 @@ val commonSettings = commonCommonSettings ++ Seq(
 
 def shapelessDependency(scalaVersion: String) = scalaVersion match {
   case v if v.startsWith("2.10") => Seq(
-    "com.chuusai" %% "shapeless" % "2.1.0" cross CrossVersion.full,
+    "com.chuusai" %% "shapeless" % "2.2.3",
     compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
   )
-  case _ => Seq("com.chuusai" %% "shapeless" % "2.1.0")
+  case _ => Seq("com.chuusai" %% "shapeless" % "2.2.3")
 }
 
 def commonDependencies(scalaVersion: String) =
-  Seq("org.scalatest" %% "scalatest" % "2.2.0" % "test") ++ shapelessDependency(scalaVersion)
+  Seq("org.scalatest" %% "scalatest" % "2.2.5" % "test") ++
+    shapelessDependency(scalaVersion)
 
 lazy val core = project
   .settings(commonSettings: _*)
@@ -51,14 +52,6 @@ lazy val core = project
     libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value
     ),
-
-    unmanagedSourceDirectories in Compile += {
-      val sourceRoot = (sourceDirectory in Compile).value
-      scalaVersion.value match {
-        case v if v.startsWith("2.10") => sourceRoot / "scala-2.10"
-        case _                         => sourceRoot / "scala-2.11"
-      }
-    },
 
     sourceGenerators in Compile += task[Seq[File]] {
       val outFile = (sourceManaged in Compile).value / "io" / "github" / "netvl" / "picopickle" / "generated.scala"
@@ -129,7 +122,7 @@ lazy val jawn = project
     sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
 
     libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
-      "org.spire-math" %% "jawn-parser" % "0.7.2"
+      "org.spire-math" %% "jawn-parser" % "0.8.0"
     )
   )
 

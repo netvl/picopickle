@@ -47,4 +47,8 @@ object Fixtures {
       def this(s: String) = this(s.toInt, s, s.toDouble)
     }
   }
+
+  object WithVarargs {
+    case class A(x: Int, y: String*)
+  }
 }
