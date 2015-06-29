@@ -62,15 +62,18 @@ trait PrimitiveWriters {
 }
 
 trait PrimitiveReaders {
-  this: BackendComponent with TypesComponent =>
+  this: BackendComponent with TypesComponent with ExceptionsComponent =>
 
-  implicit val unitReader: Reader[Unit] = Reader {
+  // basic primitives
+
+  implicit val unitReader: Reader[Unit] = Reader.reading {
     case backend.Extract.Object(m) if m.isEmpty => ()
-  }
+  }.otherwiseThrowing(whenReading = "unit", expected = "empty object")
 
-  protected final def numReader[T](f: Number => T): Reader[T] = Reader {
-    case bv => f(backend.fromNumberAccurately(bv))
-  }
+  protected final def numReader[T](f: Number => T): Reader[T] = Reader.reading {
+    case n if backend.fromNumberAccurately.isDefinedAt(n) =>
+      f(backend.fromNumberAccurately(n))
+  }.otherwiseThrowing(whenReading = "number", expected = backend.fromNumberAccuratelyExpected)
 
   implicit val byteReader: Reader[Byte] = numReader(_.byteValue())
   implicit val shortReader: Reader[Short] = numReader(_.shortValue())
@@ -79,50 +82,60 @@ trait PrimitiveReaders {
   implicit val floatReader: Reader[Float] = numReader(_.floatValue())
   implicit val doubleReader: Reader[Double] = numReader(_.doubleValue())
 
-  implicit val charReader: Reader[Char] = Reader {
+  implicit val charReader: Reader[Char] = Reader.reading {
     case backend.Extract.String(s) => s.charAt(0)
-  }
+  }.otherwiseThrowing(whenReading = "char", expected = "string")
 
-  implicit val booleanReader: Reader[Boolean] = Reader {
+  implicit val booleanReader: Reader[Boolean] = Reader.reading {
     case backend.Extract.Boolean(b) => b
-  }
+  }.otherwiseThrowing(whenReading = "boolean", expected = "boolean")
 
-  implicit val stringReader: Reader[String] = Reader {
+  implicit val stringReader: Reader[String] = Reader.reading {
     case backend.Extract.String(s) => s
-  }
+  }.otherwiseThrowing(whenReading = "string", expected = "string")
 
-  implicit def optionReader[T](implicit r: Reader[T]): Reader[Option[T]] = Reader {
+  // option
+
+  implicit def optionReader[T](implicit r: Reader[T]): Reader[Option[T]] = Reader.reading {
     case backend.Extract.Array(arr) if arr.length <= 1 => arr.headOption.map(r.read)
-  }
-  implicit def someReader[T: Reader]: Reader[Some[T]] = Reader {
-    case bv => optionReader[T].read(bv).asInstanceOf[Some[T]]
-  }
-  implicit val noneReader: Reader[None.type] = Reader {
-    case bv => optionReader[Int].read(bv).asInstanceOf[None.type]
-  }
+  }.otherwiseThrowing(whenReading = "option", expected = "array")
 
-  implicit def eitherReader[A, B](implicit ra: Reader[A], rb: Reader[B]): Reader[Either[A, B]] = Reader {
+  implicit def someReader[T](implicit r: Reader[T]): Reader[Some[T]] = Reader.reading {
+    case backend.Extract.Array(arr) if arr.length == 1 => Some(r.read(arr.head))
+  }.otherwiseThrowing(whenReading = "some", expected = "array with one element")
+
+  implicit val noneReader: Reader[None.type] = Reader.reading {
+    case backend.Extract.Array(arr) if arr.isEmpty => None
+  }.otherwiseThrowing(whenReading = "none", expected = "empty array")
+
+  // either
+
+  implicit def eitherReader[A, B](implicit ra: Reader[A], rb: Reader[B]): Reader[Either[A, B]] = Reader.reading[Either[A, B]] {
     case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 0 =>
       Left(ra.read(bv))
     case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 1 =>
       Right(rb.read(bv))
-  }
-  implicit def leftReader[A: Reader, B: Reader]: Reader[Left[A, B]] = Reader {
-    case bv => eitherReader[A, B].read(bv).asInstanceOf[Left[A, B]]
-  }
-  implicit def rightReader[A: Reader, B: Reader]: Reader[Right[A, B]] = Reader {
-    case bv => eitherReader[A, B].read(bv).asInstanceOf[Right[A, B]]
-  }
+  }.otherwiseThrowing(whenReading = "either", expected = "array with first element 0 or 1")
 
-  implicit val symbolReader: Reader[Symbol] = Reader {
+  implicit def leftReader[A, B](implicit ra: Reader[A]): Reader[Left[A, B]] = Reader.reading[Left[A, B]] {
+    case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 0 =>
+      Left(ra.read(bv))
+  }.otherwiseThrowing(whenReading = "left", expected = "array with first element 0")
+
+  implicit def rightReader[A, B](implicit rb: Reader[B]): Reader[Right[A, B]] = Reader.reading[Right[A, B]] {
+    case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 1 =>
+      Right(rb.read(bv))
+  }.otherwiseThrowing(whenReading = "right", expected = "array with first element 1")
+
+  implicit val symbolReader: Reader[Symbol] = Reader.reading {
     case backend.Extract.String(s) => Symbol(s)
-  }
+  }.otherwiseThrowing(whenReading = "symbol", expected = "string")
 
-  implicit val nullReader: Reader[Null] = Reader {
+  implicit val nullReader: Reader[Null] = Reader.reading {
     case backend.Get.Null(_) => null
-  }
+  }.otherwiseThrowing(whenReading = "null", expected = "null")
 }
 
 trait PrimitiveReaderWritersComponent extends PrimitiveReaders with PrimitiveWriters {
-  this: BackendComponent with TypesComponent =>
+  this: BackendComponent with TypesComponent with ExceptionsComponent =>
 }

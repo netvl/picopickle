@@ -19,6 +19,7 @@ trait Backend {
 
   def getObjectKey(obj: BObject, key: String): Option[BValue]
   def setObjectKey(obj: BObject, key: String, value: BValue): BObject
+  def containsObjectKey(obj: BObject, key: String): Boolean = getObjectKey(obj, key).isDefined
   def removeObjectKey(obj: BObject, key: String): BObject
   def makeEmptyObject: BObject = makeObject(Map.empty)
 
@@ -40,7 +41,8 @@ trait Backend {
   def getNumber(value: BValue): Option[BNumber]
 
   def makeNumberAccurately(n: Number): BValue
-  def fromNumberAccurately(value: BValue): Number
+  def fromNumberAccurately: PartialFunction[BValue, Number]
+  def fromNumberAccuratelyExpected: String
 
   def fromBoolean(bool: BBoolean): Boolean
   def makeBoolean(b: Boolean): BBoolean

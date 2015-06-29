@@ -8,7 +8,7 @@ import BinaryVersionSpecificDefinitions._
 
 trait DefaultValuesComponent {
 
-  // I have *no* idea why this trait and its materialization does not work outside of a cake component
+  // I have *no* idea why this trait and its materialization do not work outside of a cake component
   // without explicit imports o_O
   trait DefaultValue {
     type T

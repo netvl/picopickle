@@ -161,15 +161,12 @@ trait LowerPriorityShapelessReaders2 {
 
   implicit def genericCoproductReader[T, R <: Coproduct](implicit g: LabelledGeneric.Aux[T, R],
                                                          rr: Lazy[Reader[R]]): Reader[T] =
-    Reader { case bv => g.from(rr.value.read(bv)) }
+    rr.value.andThen(g.from)
 
   implicit def genericHListReader[T, R <: HList, RT <: HList](implicit g: LabelledGeneric.Aux[T, R],
                                                               rt: TagWithType.Aux[R, T, RT],
                                                               rr: Lazy[Reader[RT]]): Reader[T] =
-    Reader {
-      case bv =>
-        g.from(rt.unwrap(rr.value.read(bv)))
-    }
+    rr.value.andThen(rt.unwrap _ andThen g.from)
 }
 
 trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
@@ -178,31 +175,35 @@ trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
   implicit def fieldTypeReaderTagged[K <: Symbol, V, T](implicit kw: Witness.Aux[K],
                                                         vr: Lazy[Reader[V]],
                                                         dv: DefaultValue.Aux[T, K, V]): Reader[FieldType[K, V] @@@ T] =
-    Reader {
-      case backend.Get.Object(v) =>
-        val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value)
-        SourceTypeTag[T].attachTo(field[K](value.getOrElse(throw new IllegalStateException("Can't obtain value"))))
-    }
+    Reader.reading {
+      case backend.Get.Object(v) if backend.containsObjectKey(v, kw.value.name) || dv.value.isDefined =>
+        val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value).get
+        SourceTypeTag[T].attachTo(field[K](value))
+    }.otherwiseThrowing(
+        whenReading = s"case class field '${kw.value.name}'",
+        expected = s"object with key '${kw.value.name}' or a default value for this field"
+    )
 }
 
 trait ShapelessReaders extends LowerPriorityShapelessReaders {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent with DefaultValuesComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent
+    with DefaultValuesComponent with ExceptionsComponent =>
   
   implicit def optionFieldTypeReaderTagged[K <: Symbol, V, T](implicit kw: Witness.Aux[K],
                                                               vr: Lazy[Reader[V]],
                                                               dv: DefaultValue.Aux[T, K, Option[V]])
       : Reader[FieldType[K, Option[V]] @@@ T] =
-    Reader {
+    Reader.reading {
       case backend.Get.Object(v) =>
         val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value.flatten)
         SourceTypeTag[T].attachTo(field[K](value))
-    }
+    }.otherwiseThrowing(whenReading = s"case class field '${kw.value.name}'", expected = "object")
 
   implicit def recordHeadReader[H, T <: HList](implicit hr: Lazy[Reader[H]], tr: Lazy[Reader[T]],
                                                ev: H <:< FieldType[_, _]): Reader[H :: T] =
-    Reader {
+    Reader.reading {
       case bv@backend.Get.Object(_) => hr.value.read(bv) :: tr.value.read(bv)
-    }
+    }.otherwiseThrowing(whenReading = "case class", expected = "object")
 
   implicit val hnilReader: Reader[HNil] = Reader { case _ => HNil }
 
@@ -215,21 +216,26 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
 
   implicit def coproductReader[K <: Symbol, V, T <: Coproduct](implicit vr: Lazy[Reader[V]], tr: Lazy[Reader[T]],
                                                                kw: Witness.Aux[K]): Reader[FieldType[K, V] :+: T] =
-    Reader {
+    Reader.reading[FieldType[K, V] :+: T] {
       case bv@ObjectWithDiscriminator(key) =>
         if (key == kw.value.name) Inl[FieldType[K, V], T](field[K](vr.value.read(bv)))
         else Inr[FieldType[K, V], T](tr.value.read(bv))
-    }
+    }.otherwiseThrowing(
+        whenReading = "sealed trait hierarchy member",
+        expected = s"object with discriminator key '$discriminatorKey'"
+    )
 
   implicit val cnilReader: Reader[CNil] = Reader {
-    // TODO: come up with better exceptions
-    case ObjectWithDiscriminator(key) =>
-      throw new IllegalArgumentException(s"Unknown discriminator: $key")
-    case _ =>
-      throw new IllegalArgumentException(s"Discriminator is unavailable")
+    case bv =>
+      throw ReadException(
+        reading = "sealed trait hierarchy member",
+        expected = s"object with discriminator key '$discriminatorKey'",
+        got = bv
+      )
   }
 }
 
 trait ShapelessReaderWritersComponent extends ShapelessReaders with ShapelessWriters {
-  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent with DefaultValuesComponent =>
+  this: BackendComponent with TypesComponent with SealedTraitDiscriminatorComponent
+    with DefaultValuesComponent with ExceptionsComponent =>
 }

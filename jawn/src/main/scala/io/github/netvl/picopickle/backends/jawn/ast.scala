@@ -40,6 +40,8 @@ object JsonAst {
       obj.values.get(key)
     override def setObjectKey(obj: BObject, key: String, value: BValue): BObject =
       obj.copy(values = obj.values + (key -> value))
+    override def containsObjectKey(obj: BObject, key: String): Boolean =
+      obj.values.contains(key)
     override def removeObjectKey(obj: BObject, key: String): BObject =
       obj.copy(values = obj.values - key)
 
@@ -60,7 +62,8 @@ object JsonAst {
     override def getNumber(value: BValue): Option[BNumber] = value.cast[JsonNumber]
 
     override def makeNumberAccurately(n: Number): BValue = numberToBackendNumberOrString(n)
-    override def fromNumberAccurately(value: BValue): Number = doubleOrStringFromBackendNumberOrString(value)
+    override def fromNumberAccurately: PartialFunction[BValue, Number] = doubleOrStringFromBackendNumberOrString
+    override def fromNumberAccuratelyExpected: String = backendNumberOrStringExpected
 
     override def fromBoolean(bool: BBoolean): Boolean = bool match {
       case JsonTrue => true

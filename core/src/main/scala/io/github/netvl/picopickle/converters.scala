@@ -44,8 +44,8 @@ trait ConvertersComponent {
       }
     }
     trait LowerPriorityImplicits {
-      def converterAsReader[U](c: Converter[Nothing, U]): Reader[U]
       def converterAsWriter[T](c: Converter[T, Any]): Writer[T]
+      def converterAsReader[U](c: Converter[Nothing, U]): Reader[U]
 
       implicit def converterAsReadWriter[T](c: Converter[T, T]): ReadWriter[T] =
         ReadWriter[T](converterAsReader(c), converterAsWriter(c))
@@ -74,9 +74,7 @@ trait ConvertersComponent {
       }
 
       implicit def converterAsWriter[T](c: Converter[T, Any]): Writer[T] =
-        Writer {
-          case v => c.toBackend(v)
-        }
+        Writer(c.toBackend)
 
       implicit def converterAsReader[U](c: Converter[Nothing, U]): Reader[U] =
         Reader {

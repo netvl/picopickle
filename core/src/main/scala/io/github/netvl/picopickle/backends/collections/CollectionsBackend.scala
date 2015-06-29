@@ -19,6 +19,7 @@ object CollectionsBackend extends Backend {
 
   override def getObjectKey(obj: BObject, key: String): Option[BValue] = obj.get(key)
   override def setObjectKey(obj: BObject, key: String, value: BValue): BObject = obj + (key -> value)
+  override def containsObjectKey(obj: BObject, key: String): Boolean = obj.contains(key)
   override def removeObjectKey(obj: BObject, key: String): BObject = obj - key
 
   override def fromArray(arr: BArray): Vector[BValue] = arr
@@ -38,7 +39,10 @@ object CollectionsBackend extends Backend {
   override def getNumber(value: BValue): Option[BNumber] = value.cast[Number]
 
   override def makeNumberAccurately(n: Number): BValue = n
-  override def fromNumberAccurately(value: BValue): Number = value.cast[Number].get
+  override def fromNumberAccurately: PartialFunction[BValue, Number] = {
+    case value: Number => value
+  }
+  override def fromNumberAccuratelyExpected: String = "number"
 
   override def fromBoolean(bool: BBoolean): Boolean = bool
   override def makeBoolean(b: Boolean): BBoolean = b

@@ -2,6 +2,8 @@ package io.github.netvl.picopickle.utils
 
 import io.github.netvl.picopickle.Backend
 
+import scala.util.Try
+
 trait DoubleOrStringNumberRepr {
   this: Backend =>
 
@@ -19,12 +21,14 @@ trait DoubleOrStringNumberRepr {
     case x: Number => makeNumber(x)
   }
 
-  protected def doubleOrStringFromBackendNumberOrString(value: BValue): Number = value match {
+  protected def doubleOrStringFromBackendNumberOrString: PartialFunction[BValue, Number] = {
     case Extract.Number(n) => n
     case Extract.String(s)
       if s == Double.PositiveInfinity.toString ||
          s == Double.NegativeInfinity.toString ||
          s == Double.NaN.toString => s.toDouble
-    case Extract.String(s) => s.toLong  // handles big longs
+    case Extract.String(s) if Try(s.toLong).isSuccess => s.toLong  // handles big longs
   }
+
+  protected def backendNumberOrStringExpected: String = "number or string containing a number"
 }

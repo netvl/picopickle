@@ -50,11 +50,9 @@ trait CollectionWriters {
   this: ObjectKeyTypesComponent with MapPicklingComponent with BackendComponent with TypesComponent =>
 
   protected final def mkIterableWriter[T, C[_] <: Iterable[_]](implicit w: Writer[T]): Writer[C[T]] =
-    Writer.fromPF0 { c => {
-      case None => backend.makeArray(
-        c.iterator.asInstanceOf[Iterator[T]].map(e => w.write(e)).toVector
-      )
-    }}
+    Writer { c =>
+      backend.makeArray(c.iterator.asInstanceOf[Iterator[T]].map(e => w.write(e)).toVector)
+    }
 
   protected final def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]]
       (implicit wa: Writer[A], wb: Writer[B], wab: Writer[(A, B)], kw: ObjectKeyWriter[A]): Writer[M[A, B]] =
@@ -64,10 +62,9 @@ trait CollectionWriters {
       }
       case None => backend.makeObject(m.map { case (k, v) => (kw.write(k), wb.write(v)) }.toMap)
     }}
-    else Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
-      case None =>
-        backend.makeArray(m.map(t => wab.write(t)).toVector)
-    }}
+    else Writer[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) =>
+      backend.makeArray(m.map(t => wab.write(t)).toVector)
+    }
 
   implicit def iterableWriter[T: Writer]: Writer[Iterable[T]] = mkIterableWriter[T, Iterable]
 
@@ -136,26 +133,26 @@ trait CollectionReaders {
 
   protected final def mkIterableReader[T, C[_] <: Iterable[_]](implicit r: Reader[T],
                                                                cbf: CanBuildFrom[C[T], T, C[T]]): Reader[C[T]] =
-    Reader {
+    Reader.reading {
       case backend.Extract.Array(arr) => arr.map(r.read).to[C]
-    }
+    }.otherwiseThrowing(whenReading = "iterable", expected = "array")
 
   protected final def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]]
       (implicit ra: Reader[A], rb: Reader[B], kr: ObjectKeyReader[A], rab: Reader[(A, B)],
        cbf: CanBuildFrom[M[A, B], (A, B), M[A, B]]) =
-    if (kr != null) Reader {
+    if (kr != null) Reader.reading {
       case backend.Extract.Object(m) =>
         val builder = cbf.apply()
         m.foreach {
           case (k, v) => builder += (kr.read(k) -> rb.read(v))
         }
         builder.result()
-    } else Reader {
+    }.otherwiseThrowing(whenReading = "map with object keys", expected = "object") else Reader.reading {
       case backend.Extract.Array(arr) =>
         val builder = cbf.apply()
         arr.foreach { e => builder += rab.read(e) }
         builder.result()
-    }
+    }.otherwiseThrowing(whenReading = "map", expected = "array")
   
   implicit def seqReader[T: Reader]: Reader[coll.Seq[T]] = mkIterableReader[T, coll.Seq]
   implicit def immSeqReader[T: Reader]: Reader[imm.Seq[T]] = mkIterableReader[T, imm.Seq]
@@ -212,9 +209,9 @@ trait CollectionReaders {
   implicit def linkedHashMapReader[A: Reader, B: Reader](implicit allowed: MapPicklingIsAllowed[A],
                                                          kr: ObjectKeyReader[A] = null, rab: Reader[(A, B)]): Reader[mut.LinkedHashMap[A, B]] = mkMapReader[A, B, mut.LinkedHashMap]
 
-  implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader {
+  implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader.reading {
     case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
-  }
+  }.otherwiseThrowing(whenReading = "array", expected = "array")
 }
 
 trait CollectionReaderWritersComponent extends CollectionReaders with CollectionWriters {
