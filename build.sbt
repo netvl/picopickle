@@ -2,7 +2,7 @@ crossScalaVersions := Seq("2.10.5", "2.11.7")
 
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.1.4",
+  version := "0.2.0",
   scalaVersion := "2.11.7",
 
   autoAPIMappings := true
@@ -127,8 +127,21 @@ lazy val jawn = project
     )
   )
 
+lazy val mongodb = project
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings: _*)
+  .settings(
+    name := "picopickle-backend-mongodb-bson",
+
+    sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
+
+    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
+      "org.mongodb" % "bson" % "3.0.2"
+    )
+  )
+
 lazy val root = (project in file("."))
-  .aggregate(core, jawn)
+  .aggregate(core, jawn, mongodb)
   .settings(commonCommonSettings: _*)
   .settings(unidocSettings: _*)
   .settings(site.settings ++ ghpages.settings: _*)

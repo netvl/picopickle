@@ -299,12 +299,12 @@ trait TypesComponent {
     def writing[T](wf: T => backend.BValue) = new ReaderBuilder(wf)
     
     class WriterBuilder[T](rf: PF[backend.BValue, T], error: backend.BValue => Nothing) {
-      def writing(wf: T => backend.BValue): ReadWriter[T] = new PfReadWriter[T](rf, wf, error)
+      def writing(wf: T => backend.BValue) = new PfReadWriter[T](rf, wf, error)
       def orThrowing(whenReading: => String, expected: => String) = new WriterBuilder[T](rf, parameterizedReadError(whenReading, expected))
     }
 
     class ReaderBuilder[T](wf: T => backend.BValue) {
-      def reading(rf: PF[backend.BValue, T]): ReadWriter[T] = new PfReadWriter[T](rf, wf, defaultReadError)
+      def reading(rf: PF[backend.BValue, T]) = new PfReadWriter[T](rf, wf, defaultReadError)
     }
 
     class PfReadWriter[T] private[ReadWriter] (rf: PF[backend.BValue, T],

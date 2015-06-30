@@ -5,6 +5,7 @@ template: |
   import scala.collection.immutable.ListMap
   import org.scalatest.{FreeSpec, ShouldMatchers}
   import io.github.netvl.picopickle.Fixtures._
+  ${additionalImports}
 
   class ${name}PicklerTest extends FreeSpec with ShouldMatchers {
     import ${picklerClass}._
@@ -38,6 +39,7 @@ variants:
     package: io.github.netvl.picopickle.backends.collections
     picklerClass: CollectionsPickler
     targetProject: core
+    additionalImports: ''
   json:
     name: Json
     descriptiveName: JSON
@@ -47,85 +49,120 @@ variants:
     package: io.github.netvl.picopickle.backends.jawn
     picklerClass: JsonPickler
     targetProject: jawn
+    additionalImports: ''
+  mongodb:
+    name: MongodbBson
+    descriptiveName: MongoDB BSON
+    write: write
+    read: read
+    targetType: BsonValue
+    package: io.github.netvl.picopickle.backends.mongodb
+    picklerClass: MongodbBsonPickler
+    targetProject: mongodb
+    additionalImports: |
+      import scala.collection.convert.decorateAsJava._
+      import org.bson._
 global:
   rw:
     pattern:
       - source
       - collections
       - json
+      - mongodb
 cases:
   - name: numbers to numbers
     rw:
       - - '1: Byte'
         - '1: Byte'
         - '"1"'
+        - "new BsonInt32(1)"
       - - '2: Short'
         - '2: Short'
         - '"2"'
+        - "new BsonInt32(2)"
       - - '3: Int'
         - '3: Int'
         - '"3"'
+        - "new BsonInt32(3)"
       - - '4: Long'
         - '4: Long'
         - '"4"'
+        - "new BsonInt64(4)"
       - - '5: Float'
         - '5: Float'
         - '"5"'
+        - "new BsonDouble(5)"
       - - '6: Double'
         - '6: Double'
         - '"6"'
+        - "new BsonDouble(6)"
   - name: characters
     rw:
       input:
         - - "'a'"
           - "'a'"
           - '""""a""""'
+          - 'new BsonString("a")'
   - name: string to string
     rw:
       - - '"hello world"'
         - '"hello world"'
         - '""""hello world""""'
+        - 'new BsonString("hello world")'
   - name: null to null
     rw:
       - - 'null'
         - 'null'
         - '"null"'
+        - 'new BsonNull'
   - name: unit to an empty object
     rw:
       - - '()'
         - 'Map()'
         - '"{}"'
+        - 'new BsonDocument()'
   - name: boolean to boolean
     rw:
       - - 'true'
         - 'true'
         - '"true"'
+        - 'BsonBoolean.TRUE'
       - - 'false'
         - 'false'
         - '"false"'
+        - 'BsonBoolean.FALSE'
   - name: collection to an array
     rw:
       - - 'Seq("a", "b")'
         - 'Vector("a", "b")'
         - '"""["a","b"]"""'
+        - 'new BsonArray(Vector(new BsonString("a"), new BsonString("b")).asJava)'
   - name: option to an array
     rw:
       - - 'Option("a")'
         - 'Vector("a")'
         - '"""["a"]"""'
+        - 'new BsonArray(Vector(new BsonString("a")).asJava)'
       - - 'None'
         - 'Vector.empty'
         - '"""[]"""'
+        - 'new BsonArray()'
   - name: map to an array of arrays
     rw:
       - - 'ListMap(1 -> 2, 3 -> 4)'
         - 'Vector(Vector(1, 2), Vector(3, 4))'
         - '"""[[1,2],[3,4]]"""'
+        - |
+          new BsonArray(Vector(
+            new BsonArray(Vector(new BsonInt32(1), new BsonInt32(2)).asJava),
+            new BsonArray(Vector(new BsonInt32(3), new BsonInt32(4)).asJava)
+          ).asJava)
   - name: map with string keys to an object
     rw:
       - - 'ListMap("a" -> 1, "b" -> 2)'
         - 'Map("a" -> 1, "b" -> 2)'
         - '"""{"a":1,"b":2}"""'
+        - 'new BsonDocument().append("a", new BsonInt32(1)).append("b", new BsonInt32(2))'
   - name: case class to an object
     prepend: |
       import CaseClass._
@@ -133,6 +170,7 @@ cases:
       - - 'A(10, "hi")'
         - 'Map("x" -> 10, "y" -> "hi")'
         - '"""{"x":10,"y":"hi"}"""'
+        - 'new BsonDocument().append("x", new BsonInt32(10)).append("y", new BsonString("hi"))'
   - name: case object to an empty object
     prepend: |
       import CaseObject._
@@ -140,6 +178,7 @@ cases:
       - - 'A'
         - 'Map()'
         - '"{}"'
+        - 'new BsonDocument()'
   - name: sealed trait hierarchy to an object with a discriminator key
     prepend: |
       import SealedTrait._
@@ -154,6 +193,11 @@ cases:
               "y" -> "hello"
             )
           - '"""{"$variant":"A","x":12,"y":"hello"}"""'
+          - |
+            new BsonDocument()
+              .append("$variant", new BsonString("A"))
+              .append("x", new BsonInt32(12))
+              .append("y", new BsonString("hello"))
       - type: Root
         items:
           - 'B(42L, Vector(1.0, 2.0, 3.0))'
@@ -164,11 +208,19 @@ cases:
               "b" -> Vector(1.0, 2.0, 3.0)
             )
           - '"""{"$variant":"B","a":42,"b":[1,2,3]}"""'
+          - |
+            new BsonDocument()
+              .append("$variant", new BsonString("B"))
+              .append("a", new BsonInt64(42))
+              .append("b", new BsonArray(Vector(
+                new BsonDouble(1.0), new BsonDouble(2.0), new BsonDouble(3.0)
+              ).asJava))
       - type: Root
         items:
           - 'C'
           - 'Map("$variant" -> "C")'
           - '"""{"$variant":"C"}"""'
+          - 'new BsonDocument().append("$variant", new BsonString("C"))'
   - name: recursive types
     prepend: |
       import Recursives._
@@ -178,6 +230,7 @@ cases:
           - 'A'
           - 'Map("$variant" -> "A")'
           - '"""{"$variant":"A"}"""'
+          - 'new BsonDocument().append("$variant", new BsonString("A"))'
       - type: Root
         items:
           - 'B(1, Some(B(2, Some(B(3, None)))))'
@@ -193,6 +246,16 @@ cases:
               )
             )
           - '"""{"$variant":"B","x":1,"b":{"x":2,"b":{"x":3}}}"""'
+          - |
+            new BsonDocument()
+              .append("$variant", new BsonString("B"))
+              .append("x", new BsonInt32(1))
+              .append("b", new BsonDocument()
+                .append("x", new BsonInt32(2))
+                .append("b", new BsonDocument()
+                  .append("x", new BsonInt32(3))
+                )
+              )
       - type: Root
         items:
           - 'C(A)'
@@ -204,6 +267,12 @@ cases:
               )
             )
           - '"""{"$variant":"C","next":{"$variant":"A"}}"""'
+          - |
+            new BsonDocument()
+              .append("$variant", new BsonString("C"))
+              .append("next", new BsonDocument()
+                .append("$variant", new BsonString("A"))
+              )
   - name: fields and classes renamed with annotations
     prepend: |
       import Renames._
@@ -213,6 +282,7 @@ cases:
           - 'A'
           - 'Map("$variant" -> "0")'
           - '"""{"$variant":"0"}"""'
+          - 'new BsonDocument().append("$variant", new BsonString("0"))'
       - type: Root
         items:
           - 'B(12, "hello")'
@@ -223,6 +293,11 @@ cases:
               "zzz" -> "hello"
             )
           - '"""{"$variant":"B","x":12,"zzz":"hello"}"""'
+          - |
+            new BsonDocument()
+              .append("$variant", new BsonString("B"))
+              .append("x", new BsonInt32(12))
+              .append("zzz", new BsonString("hello"))
   - name: case classes with default values
     prepend: |
       import Defaults._
@@ -232,17 +307,24 @@ cases:
           - 'A(10)'
           - 'Map("x" -> 10)'
           - '"""{"x":10}"""'
+          - 'new BsonDocument().append("x", new BsonInt32(10))'
       - kind: r
         items:
           - 'A(10, "wow")'
           - 'Map("x" -> 10, "name" -> "wow")'
           - '"""{"x":10,"name":"wow"}"""'
+          - 'new BsonDocument().append("x", new BsonInt32(10)).append("name", new BsonString("wow"))'
       - kind: r
         type: Root
         items:
           - 'A(10, enabled = true)'
           - 'Map("$variant" -> "A", "x" -> 10, "enabled" -> true)'
           - '"""{"$variant":"A","x":10,"enabled":true}"""'
+          - |
+            new BsonDocument()
+              .append("$variant", new BsonString("A"))
+              .append("x", new BsonInt32(10))
+              .append("enabled", BsonBoolean.TRUE)
   - name: case classes with null fields
     prepend: |
       import CaseClass._
@@ -250,6 +332,7 @@ cases:
       - - 'A(10, null)'
         - 'Map("x" -> 10, "y" -> null)'
         - '"""{"x":10,"y":null}"""'
+        - 'new BsonDocument().append("x", new BsonInt32(10)).append("y", new BsonNull)'
   - name: case classes with an overloaded apply method in their companions
     prepend: |
       import WithOverloadedApplyMethod._
@@ -257,6 +340,11 @@ cases:
       - - 'A(1, "2", 3.4)'
         - 'Map("x" -> 1, "y" -> "2", "z" -> 3.4)'
         - '"""{"x":1,"y":"2","z":3.4}"""'
+        - |
+          new BsonDocument()
+            .append("x", new BsonInt32(1))
+            .append("y", new BsonString("2"))
+            .append("z", new BsonDouble(3.4))
   - name: case classes with an overloaded constructor
     prepend: |
       import WithOverloadedConstructor._
@@ -264,6 +352,11 @@ cases:
       - - 'A(1, "2", 3.4)'
         - 'Map("x" -> 1, "y" -> "2", "z" -> 3.4)'
         - '"""{"x":1,"y":"2","z":3.4}"""'
+        - |
+          new BsonDocument()
+            .append("x", new BsonInt32(1))
+            .append("y", new BsonString("2"))
+            .append("z", new BsonDouble(3.4))
   - name: maps with non-string keys but with a defined object key serializer
     prepend: |
       implicit val intObjectKeyRW = ObjectKeyReadWriter(_.toInt)
@@ -271,6 +364,7 @@ cases:
       - - 'Map(1 -> "a", 2 -> "b")'
         - 'Map("1" -> "a", "2" -> "b")'
         - '"""{"1":"a","2":"b"}"""'
+        - 'new BsonDocument().append("1", new BsonString("a")).append("2", new BsonString("b"))'
   - name: case classes with varargs
     prepend: |
       import WithVarargs._
@@ -278,3 +372,7 @@ cases:
       - - 'A(1, "a", "b", "c")'
         - 'Map("x" -> 1, "y" -> Vector("a", "b", "c"))'
         - '"""{"x":1,"y":["a","b","c"]}"""'
+        - |
+          new BsonDocument()
+            .append("x", new BsonInt32(1))
+            .append("y", new BsonArray(Vector(new BsonString("a"), new BsonString("b"), new BsonString("c")).asJava))
