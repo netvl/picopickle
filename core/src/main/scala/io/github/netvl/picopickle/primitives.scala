@@ -68,12 +68,12 @@ trait PrimitiveReaders {
 
   implicit val unitReader: Reader[Unit] = Reader.reading {
     case backend.Extract.Object(m) if m.isEmpty => ()
-  }.otherwiseThrowing(whenReading = "unit", expected = "empty object")
+  }.orThrowing(whenReading = "unit", expected = "empty object")
 
   protected final def numReader[T](f: Number => T): Reader[T] = Reader.reading {
     case n if backend.fromNumberAccurately.isDefinedAt(n) =>
       f(backend.fromNumberAccurately(n))
-  }.otherwiseThrowing(whenReading = "number", expected = backend.fromNumberAccuratelyExpected)
+  }.orThrowing(whenReading = "number", expected = backend.fromNumberAccuratelyExpected)
 
   implicit val byteReader: Reader[Byte] = numReader(_.byteValue())
   implicit val shortReader: Reader[Short] = numReader(_.shortValue())
@@ -84,29 +84,29 @@ trait PrimitiveReaders {
 
   implicit val charReader: Reader[Char] = Reader.reading {
     case backend.Extract.String(s) => s.charAt(0)
-  }.otherwiseThrowing(whenReading = "char", expected = "string")
+  }.orThrowing(whenReading = "char", expected = "string")
 
   implicit val booleanReader: Reader[Boolean] = Reader.reading {
     case backend.Extract.Boolean(b) => b
-  }.otherwiseThrowing(whenReading = "boolean", expected = "boolean")
+  }.orThrowing(whenReading = "boolean", expected = "boolean")
 
   implicit val stringReader: Reader[String] = Reader.reading {
     case backend.Extract.String(s) => s
-  }.otherwiseThrowing(whenReading = "string", expected = "string")
+  }.orThrowing(whenReading = "string", expected = "string")
 
   // option
 
   implicit def optionReader[T](implicit r: Reader[T]): Reader[Option[T]] = Reader.reading {
     case backend.Extract.Array(arr) if arr.length <= 1 => arr.headOption.map(r.read)
-  }.otherwiseThrowing(whenReading = "option", expected = "array")
+  }.orThrowing(whenReading = "option", expected = "array")
 
   implicit def someReader[T](implicit r: Reader[T]): Reader[Some[T]] = Reader.reading {
     case backend.Extract.Array(arr) if arr.length == 1 => Some(r.read(arr.head))
-  }.otherwiseThrowing(whenReading = "some", expected = "array with one element")
+  }.orThrowing(whenReading = "some", expected = "array with one element")
 
   implicit val noneReader: Reader[None.type] = Reader.reading {
     case backend.Extract.Array(arr) if arr.isEmpty => None
-  }.otherwiseThrowing(whenReading = "none", expected = "empty array")
+  }.orThrowing(whenReading = "none", expected = "empty array")
 
   // either
 
@@ -115,25 +115,25 @@ trait PrimitiveReaders {
       Left(ra.read(bv))
     case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 1 =>
       Right(rb.read(bv))
-  }.otherwiseThrowing(whenReading = "either", expected = "array with first element 0 or 1")
+  }.orThrowing(whenReading = "either", expected = "array with first element 0 or 1")
 
   implicit def leftReader[A, B](implicit ra: Reader[A]): Reader[Left[A, B]] = Reader.reading[Left[A, B]] {
     case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 0 =>
       Left(ra.read(bv))
-  }.otherwiseThrowing(whenReading = "left", expected = "array with first element 0")
+  }.orThrowing(whenReading = "left", expected = "array with first element 0")
 
   implicit def rightReader[A, B](implicit rb: Reader[B]): Reader[Right[A, B]] = Reader.reading[Right[A, B]] {
     case backend.Extract.Array(Vector(backend.Extract.Number(n), bv)) if n.intValue() == 1 =>
       Right(rb.read(bv))
-  }.otherwiseThrowing(whenReading = "right", expected = "array with first element 1")
+  }.orThrowing(whenReading = "right", expected = "array with first element 1")
 
   implicit val symbolReader: Reader[Symbol] = Reader.reading {
     case backend.Extract.String(s) => Symbol(s)
-  }.otherwiseThrowing(whenReading = "symbol", expected = "string")
+  }.orThrowing(whenReading = "symbol", expected = "string")
 
   implicit val nullReader: Reader[Null] = Reader.reading {
     case backend.Get.Null(_) => null
-  }.otherwiseThrowing(whenReading = "null", expected = "null")
+  }.orThrowing(whenReading = "null", expected = "null")
 }
 
 trait PrimitiveReaderWritersComponent extends PrimitiveReaders with PrimitiveWriters {

@@ -69,10 +69,10 @@ lazy val core = project
         val tupleReader =
           s"""
            |  implicit def tuple${i}Reader[$types](implicit $readers): Reader[Tuple$i[$types]] =
-           |    Reader {
+           |    Reader.reading {
            |      case backend.Extract.Array(Vector($vars)) =>
            |        Tuple$i($reads)
-           |    }
+           |    }.orThrowing(whenReading = "${i}-tuple", expected = "array")
          """.stripMargin
 
         val tupleWriter =

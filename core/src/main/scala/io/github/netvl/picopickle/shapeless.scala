@@ -86,7 +86,7 @@ trait LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
 
   implicit def genericWriter[T, R](implicit g: LabelledGeneric.Aux[T, R], rw: Lazy[Writer[R]]): Writer[T] =
-    Writer.fromPF1 {
+    Writer.fromF1 {
       case (f, bv) => rw.value.write0(g.to(f), bv)
     }
 }
@@ -95,7 +95,7 @@ trait LowerPriorityShapelessWriters extends LowerPriorityShapelessWriters2 {
   this: BackendComponent with TypesComponent =>
 
   implicit def fieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K], vw: Lazy[Writer[V]]): Writer[FieldType[K, V]] =
-    Writer.fromPF0N { f => {
+    Writer.fromF0N { f => {
       case Some(backend.Get.Object(v)) => backend.setObjectKey(v, kw.value.name, vw.value.write(f))
       case None => backend.makeObject(Map(kw.value.name -> vw.value.write(f)))
     }}
@@ -106,7 +106,7 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
 
   implicit def optionFieldTypeWriter[K <: Symbol, V](implicit kw: Witness.Aux[K],
                                                      vw: Lazy[Writer[V]]): Writer[FieldType[K, Option[V]]] =
-    Writer.fromPF0N { f => {
+    Writer.fromF0N { f => {
       case Some(backend.Get.Object(v)) => (f: Option[V]) match {
         case Some(value) => backend.setObjectKey(v, kw.value.name, vw.value.write(value))
         case None => v: backend.BValue
@@ -115,16 +115,16 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
         case Some(value) => backend.makeObject(Map(kw.value.name -> vw.value.write(value)))
         case None => backend.makeEmptyObject
       }
-    }}
+    } }
 
   implicit def recordHeadWriter[H, T <: HList](implicit hw: Lazy[Writer[H]], tw: Lazy[Writer[T]],
                                                ev: H <:< FieldType[_, _]): Writer[H :: T] =
-    Writer.fromPF1 {
+    Writer.fromF1 {
       case (h :: t, bv) => tw.value.write0(t, Some(hw.value.write0(h, bv)))
     }
 
   implicit val hnilWriter: Writer[HNil] =
-    Writer.fromPF0N { _ => {
+    Writer.fromF0N { _ => {
       case Some(bv) => bv
       case None => backend.makeEmptyObject
     } }
@@ -140,7 +140,7 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
   implicit def coproductWriter[K <: Symbol, V, T <: Coproduct](implicit vw: Lazy[Writer[V]],
                                                                tw: Lazy[Writer[T]],
                                                                kw: Witness.Aux[K]): Writer[FieldType[K, V] :+: T] =
-    Writer.fromPF1 {
+    Writer.fromF1 {
       case (Inl(h), ObjectOrEmpty(obj)) =>
         vw.value.write0(h, Some(backend.setObjectKey(obj, discriminatorKey, backend.makeString(kw.value.name))))
 
@@ -149,7 +149,7 @@ trait ShapelessWriters extends LowerPriorityShapelessWriters {
     }
 
   implicit val cnilWriter: Writer[CNil] =
-    Writer.fromPF0N { _ =>  {
+    Writer.fromF0N { _ =>  {
       case Some(obj) => obj  // pass through the accumulated value
       // This is impossible, I believe
       case None => throw new IllegalStateException("Couldn't serialize a sealed trait")
@@ -179,7 +179,7 @@ trait LowerPriorityShapelessReaders extends LowerPriorityShapelessReaders2 {
       case backend.Get.Object(v) if backend.containsObjectKey(v, kw.value.name) || dv.value.isDefined =>
         val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value).get
         SourceTypeTag[T].attachTo(field[K](value))
-    }.otherwiseThrowing(
+    }.orThrowing(
         whenReading = s"case class field '${kw.value.name}'",
         expected = s"object with key '${kw.value.name}' or a default value for this field"
     )
@@ -197,13 +197,13 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
       case backend.Get.Object(v) =>
         val value = backend.getObjectKey(v, kw.value.name).map(vr.value.read).orElse(dv.value.flatten)
         SourceTypeTag[T].attachTo(field[K](value))
-    }.otherwiseThrowing(whenReading = s"case class field '${kw.value.name}'", expected = "object")
+    }.orThrowing(whenReading = s"case class field '${kw.value.name}'", expected = "object")
 
   implicit def recordHeadReader[H, T <: HList](implicit hr: Lazy[Reader[H]], tr: Lazy[Reader[T]],
                                                ev: H <:< FieldType[_, _]): Reader[H :: T] =
     Reader.reading {
       case bv@backend.Get.Object(_) => hr.value.read(bv) :: tr.value.read(bv)
-    }.otherwiseThrowing(whenReading = "case class", expected = "object")
+    }.orThrowing(whenReading = "case class", expected = "object")
 
   implicit val hnilReader: Reader[HNil] = Reader { case _ => HNil }
 
@@ -220,7 +220,7 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
       case bv@ObjectWithDiscriminator(key) =>
         if (key == kw.value.name) Inl[FieldType[K, V], T](field[K](vr.value.read(bv)))
         else Inr[FieldType[K, V], T](tr.value.read(bv))
-    }.otherwiseThrowing(
+    }.orThrowing(
         whenReading = "sealed trait hierarchy member",
         expected = s"object with discriminator key '$discriminatorKey'"
     )
@@ -229,7 +229,7 @@ trait ShapelessReaders extends LowerPriorityShapelessReaders {
     case bv =>
       throw ReadException(
         reading = "sealed trait hierarchy member",
-        expected = s"object with discriminator key '$discriminatorKey'",
+        expected = s"object with discriminator key '$discriminatorKey' equal to known value",
         got = bv
       )
   }

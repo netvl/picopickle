@@ -56,7 +56,7 @@ trait CollectionWriters {
 
   protected final def mkMapWriter[A, B, M[K, V] <: coll.Map[K, V] with coll.MapLike[K, V, M[K, V]]]
       (implicit wa: Writer[A], wb: Writer[B], wab: Writer[(A, B)], kw: ObjectKeyWriter[A]): Writer[M[A, B]] =
-    if (kw != null) Writer.fromPF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
+    if (kw != null) Writer.fromF0[M[A, B]] { (m: coll.MapLike[A, B, M[A, B]]) => {
       case Some(backend.Get.Object(obj)) => m.foldLeft(obj) { (acc, t) =>
         backend.setObjectKey(acc, kw.write(t._1), wb.write(t._2))
       }
@@ -135,7 +135,7 @@ trait CollectionReaders {
                                                                cbf: CanBuildFrom[C[T], T, C[T]]): Reader[C[T]] =
     Reader.reading {
       case backend.Extract.Array(arr) => arr.map(r.read).to[C]
-    }.otherwiseThrowing(whenReading = "iterable", expected = "array")
+    }.orThrowing(whenReading = "iterable", expected = "array")
 
   protected final def mkMapReader[A, B, M[_, _] <: coll.Map[_, _]]
       (implicit ra: Reader[A], rb: Reader[B], kr: ObjectKeyReader[A], rab: Reader[(A, B)],
@@ -147,12 +147,12 @@ trait CollectionReaders {
           case (k, v) => builder += (kr.read(k) -> rb.read(v))
         }
         builder.result()
-    }.otherwiseThrowing(whenReading = "map with object keys", expected = "object") else Reader.reading {
+    }.orThrowing(whenReading = "map with object keys", expected = "object") else Reader.reading {
       case backend.Extract.Array(arr) =>
         val builder = cbf.apply()
         arr.foreach { e => builder += rab.read(e) }
         builder.result()
-    }.otherwiseThrowing(whenReading = "map", expected = "array")
+    }.orThrowing(whenReading = "map", expected = "array")
   
   implicit def seqReader[T: Reader]: Reader[coll.Seq[T]] = mkIterableReader[T, coll.Seq]
   implicit def immSeqReader[T: Reader]: Reader[imm.Seq[T]] = mkIterableReader[T, imm.Seq]
@@ -211,7 +211,7 @@ trait CollectionReaders {
 
   implicit def arrayReader[T: ClassTag](implicit r: Reader[T]): Reader[Array[T]] = Reader.reading {
     case backend.Extract.Array(arr) => arr.map(r.read).toArray[T]
-  }.otherwiseThrowing(whenReading = "array", expected = "array")
+  }.orThrowing(whenReading = "array", expected = "array")
 }
 
 trait CollectionReaderWritersComponent extends CollectionReaders with CollectionWriters {

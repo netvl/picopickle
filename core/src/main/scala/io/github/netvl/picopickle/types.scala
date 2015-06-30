@@ -38,6 +38,9 @@ trait TypesComponent {
      * when serializing complex objects which require multiple serializers
      * to work together (for example, serializing `HList`s to obtain a map).
      *
+     * This method shouldn't be invoked directly as it is for internal use. Use [[write]] method
+     * instead.
+     *
      * @param value a value to be serialized
      * @param acc possibly absent accumulator
      * @return serialized representation of `value`
@@ -47,7 +50,8 @@ trait TypesComponent {
     /**
      * Wraps [[Writer.write0 write0]] call, passing [[scala.None None]] as the second argument.
      *
-     * Just a shorthand for `write0(value, None)`.
+     * Just a shorthand for `write0(value, None)`. This is the main method which should be used
+     * for writing objects.
      *
      * @param value a value to be serialized
      * @return serialized representation of `value`
@@ -68,7 +72,7 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def fromPF0[T](ff: T => (Option[backend.BValue] => backend.BValue)): Writer[T] =
+    def fromF0[T](ff: T => (Option[backend.BValue] => backend.BValue)): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           nullHandler.toBackend[T](value, ff(_)(acc))
@@ -83,7 +87,7 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def fromPF0N[T](ff: T => (Option[backend.BValue] => backend.BValue)): Writer[T] =
+    def fromF0N[T](ff: T => (Option[backend.BValue] => backend.BValue)): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
           ff(value)(acc)
@@ -98,10 +102,10 @@ trait TypesComponent {
      * @tparam T source type
      * @return a writer delegating to the provided function
      */
-    def fromPF1[T](ff: (T, Option[backend.BValue]) => backend.BValue): Writer[T] =
+    def fromF1[T](ff: (T, Option[backend.BValue]) => backend.BValue): Writer[T] =
       new Writer[T] {
         override def write0(value: T, acc: Option[backend.BValue]): backend.BValue =
-          nullHandler.toBackend[T](value, v => ff(v, acc))
+          nullHandler.toBackend[T](value, ff(_, acc))
       }
 
     /**
@@ -176,9 +180,9 @@ trait TypesComponent {
      * (which is in fact its default implementation) but it can be overridden to avoid excessive
      * checks. See [[PartialFunction.applyOrElse]] method for longer explanation.
      *
-     * [[Reader.apply]] method overrides this method to employ the provided partial function
+     * [[Reader.apply]] and [[Reader.reading]] method overrides this method to employ the provided partial function
      * `applyOrElse` method. Consider implementing this method for your readers if for some
-     * reason you don't use `Reader.apply`.
+     * reason you don't use `Reader.apply` or `Reader.reading`.
      *
      * @param value a backend value
      * @param fallback a fallback function
@@ -260,26 +264,23 @@ trait TypesComponent {
      */
     def apply[T](f: PF[backend.BValue, T]): Reader[T] =
       new Reader[T] {
-        override def canRead(value: backend.BValue) = value match {
-          case backend.Get.Null(_) => nullHandler.handlesNull
-          case _ => f.isDefinedAt(value)
-        }
+        override def canRead(value: backend.BValue) = nullHandler.canRead(value, f.isDefinedAt)
 
         override def read(value: backend.BValue): T =
-          readOrElse(value, v => throw ReadException(s"unexpected backend value: $v", data = Some(v)))
+          readOrElse(value, defaultReadError)
 
         override def readOrElse(value: backend.BValue, fallback: backend.BValue => T): T =
-          nullHandler.fromBackend(value, v => f.applyOrElse(value, fallback))
+          nullHandler.fromBackend(value, v => f.applyOrElse(v, fallback))
       }
 
     def reading[T](f: PF[backend.BValue, T]): ReaderBuilder[T] = new ReaderBuilder[T](f)
 
     class ReaderBuilder[T](f: PF[backend.BValue, T]) {
-      def otherwiseThrowing(message: backend.BValue => String): Reader[T] = Reader(f orElse {
-        case value => throw ReadException(message(value), data = Some(value))
+      def orThrowing(message: backend.BValue => String): Reader[T] = Reader(f orElse {
+        case value => throw ReadException(message(value), data = value)
       })
-      def otherwiseThrowing(whenReading: => String, expected: => String): Reader[T] = Reader(f orElse {
-        case value => throw ReadException(whenReading, expected, value)
+      def orThrowing(whenReading: => String, expected: => String): Reader[T] = Reader(f orElse {
+        case value => parameterizedReadError(whenReading, expected)(value)
       })
     }
   }
@@ -294,25 +295,28 @@ trait TypesComponent {
       override def write0(value: T, acc: Option[backend.BValue]) = w.write0(value, acc)
     }
 
-    def reading[T](rf: PF[backend.BValue, T]) = new WriterBuilder(rf)
+    def reading[T](rf: PF[backend.BValue, T]) = new WriterBuilder(rf, defaultReadError)
     def writing[T](wf: T => backend.BValue) = new ReaderBuilder(wf)
     
-    class WriterBuilder[T](rf: PF[backend.BValue, T]) {
-      def writing(wf: T => backend.BValue): ReadWriter[T] = new PfReadWriter[T](rf, wf)
+    class WriterBuilder[T](rf: PF[backend.BValue, T], error: backend.BValue => Nothing) {
+      def writing(wf: T => backend.BValue): ReadWriter[T] = new PfReadWriter[T](rf, wf, error)
+      def orThrowing(whenReading: => String, expected: => String) = new WriterBuilder[T](rf, parameterizedReadError(whenReading, expected))
     }
 
     class ReaderBuilder[T](wf: T => backend.BValue) {
-      def reading(rf: PF[backend.BValue, T]): ReadWriter[T] = new PfReadWriter[T](rf, wf)
+      def reading(rf: PF[backend.BValue, T]): ReadWriter[T] = new PfReadWriter[T](rf, wf, defaultReadError)
     }
 
-    private class PfReadWriter[T](rf: PF[backend.BValue, T], wf: T => backend.BValue) extends Reader[T] with Writer[T] {
-      override def canRead(value: backend.BValue) = value match {
-        case backend.Get.Null(_) => nullHandler.handlesNull
-        case _ => rf.isDefinedAt(value)
-      }
+    class PfReadWriter[T] private[ReadWriter] (rf: PF[backend.BValue, T],
+                                               wf: T => backend.BValue,
+                                               error: backend.BValue => Nothing) extends Reader[T] with Writer[T] {
+      def orThrowing(whenReading: => String, expected: => String): ReadWriter[T] =
+        new PfReadWriter[T](rf, wf, parameterizedReadError(whenReading, expected))
+
+      override def canRead(value: backend.BValue) = nullHandler.canRead(value, rf.isDefinedAt)
 
       override def read(value: backend.BValue) =
-        readOrElse(value, v => throw ReadException(s"unexpected backend value: $v", data = Some(v)))
+        readOrElse(value, error)
 
       override def readOrElse(value: backend.BValue, fallback: backend.BValue => T) =
         nullHandler.fromBackend(value, v => rf.applyOrElse(v, fallback))
@@ -320,5 +324,10 @@ trait TypesComponent {
       override def write0(value: T, acc: Option[backend.BValue]) = nullHandler.toBackend(value, wf)
     }
   }
+
+  private def defaultReadError(v: backend.BValue): Nothing =
+    throw ReadException(s"unexpected backend value: $v", data = v)
+  private def parameterizedReadError(reading: => String, expected: => String)(value: backend.BValue): Nothing =
+    throw ReadException(reading, expected, value)
 }
 
