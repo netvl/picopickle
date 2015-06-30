@@ -1,7 +1,10 @@
 package io.github.netvl.picopickle.backends.mongodb
 
-import io.github.netvl.picopickle.{TypesComponent, DefaultPickler, ExceptionsComponent, BackendComponent}
+import _root_.io.github.netvl.picopickle.{TypesComponent, DefaultPickler, ExceptionsComponent, BackendComponent}
+import org.bson._
 import org.bson.types.ObjectId
+
+import scala.reflect.{ClassTag, classTag}
 
 trait MongodbBsonBackendComponent extends BackendComponent {
   override val backend = MongodbBsonBackend
@@ -16,6 +19,27 @@ trait MongodbBsonExceptionsComponent extends ExceptionsComponent {
 
 trait MongodbBsonSerializersComponent {
   this: MongodbBsonBackendComponent with TypesComponent =>
+
+  private def identityBsonReadWriter[T <: backend.BValue : ClassTag] =
+    ReadWriter.writing[T](identity).reading { case value: T => value }
+      .orThrowing(whenReading = classTag[T].runtimeClass.getSimpleName, expected = classTag[T].runtimeClass.getSimpleName)
+
+  implicit val bsonValueReadWriter: ReadWriter[BsonValue] =
+    ReadWriter.writing[BsonValue](identity).reading(PartialFunction(identity))
+
+  implicit val bsonDocumentReadWriter: ReadWriter[BsonDocument] = identityBsonReadWriter[BsonDocument]
+  implicit val bsonArrayReadWriter: ReadWriter[BsonArray] = identityBsonReadWriter[BsonArray]
+  implicit val bsonStringReadWriter: ReadWriter[BsonString] = identityBsonReadWriter[BsonString]
+  implicit val bsonNumberReadWriter: ReadWriter[BsonNumber] = identityBsonReadWriter[BsonNumber]
+  implicit val bsonBooleanReadWriter: ReadWriter[BsonBoolean] = identityBsonReadWriter[BsonBoolean]
+  implicit val bsonNullReadWriter: ReadWriter[BsonNull] = identityBsonReadWriter[BsonNull]
+  implicit val bsonObjectIdReadWriter: ReadWriter[BsonObjectId] = identityBsonReadWriter[BsonObjectId]
+  implicit val bsonInt32ReadWriter: ReadWriter[BsonInt32] = identityBsonReadWriter[BsonInt32]
+  implicit val bsonInt64ReadWriter: ReadWriter[BsonInt64] = identityBsonReadWriter[BsonInt64]
+  implicit val bsonDoubleReadWriter: ReadWriter[BsonDouble] = identityBsonReadWriter[BsonDouble]
+  implicit val bsonDateTimeReadWriter: ReadWriter[BsonDateTime] = identityBsonReadWriter[BsonDateTime]
+  implicit val bsonBinaryReadWriter: ReadWriter[BsonBinary] = identityBsonReadWriter[BsonBinary]
+  implicit val bsonSymbolReadWriter: ReadWriter[BsonSymbol] = identityBsonReadWriter[BsonSymbol]
 
   implicit val symbolReadWriter: ReadWriter[Symbol] = ReadWriter.writing(backend.makeSymbol)
     .reading {
