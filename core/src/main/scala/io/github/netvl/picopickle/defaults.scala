@@ -20,7 +20,7 @@ trait DefaultValuesComponent {
   object DefaultValue {
     type Aux[T0, K0, V0] = DefaultValue { type T = T0; type K = K0; type V = V0 }
     implicit def materializeDefaultValue[T, K <: Symbol, V]: DefaultValue.Aux[T, K, V] =
-    macro DefaultValueMacrosImpl.materializeDefaultValueImpl[DefaultValue.Aux[T, K, V], T, K, V]
+      macro DefaultValueMacrosImpl.materializeDefaultValueImpl[DefaultValue.Aux[T, K, V], T, K, V]
   }
 }
 
@@ -83,17 +83,20 @@ object SourceTypeTag {
   }
 }
 
-trait TagWithType[L, U] {
+trait TagWithType[In, U] {
   type Out
-  def unwrap(source: Out): L
+  def wrap(source: In): Out
+  def unwrap(source: Out): In
 }
-object TagWithType {
-  def apply[L, U](implicit t: TagWithType[L, U]): Aux[L, U, t.Out] = t
 
-  type Aux[L, U, Out0] = TagWithType[L, U] { type Out = Out0 }
+object TagWithType {
+  def apply[In, U](implicit t: TagWithType[In, U]): Aux[In, U, t.Out] = t
+
+  type Aux[In, U, Out0] = TagWithType[In, U] { type Out = Out0 }
 
   implicit def tagWithTypeHNil[U]: TagWithType.Aux[HNil, U, HNil] = new TagWithType[HNil, U] {
     type Out = HNil
+    def wrap(source: HNil): HNil = HNil
     def unwrap(source: HNil): HNil = HNil
   }
 
@@ -101,8 +104,32 @@ object TagWithType {
       : TagWithType.Aux[H :: T, U, (H @@@ U) :: O] =
     new TagWithType[H :: T, U] {
       type Out = (H @@@ U) :: O
+      def wrap(source: H :: T) = source match {
+        case h :: t => SourceTypeTag[U].attachTo(h) :: tt.wrap(t)
+      }
       def unwrap(source: (H @@@ U) :: O): H :: T = source match {
         case h :: t => h :: tt.unwrap(t)
+      }
+    }
+
+  implicit def tagWithTypeCNil[U]: TagWithType.Aux[CNil, U, CNil] = new TagWithType[CNil, U]{
+    type Out = CNil
+    // XXX: maybe this should throw something?
+    def wrap(source: CNil): CNil = source
+    def unwrap(source: CNil): CNil = source
+  }
+
+  implicit def tagWithTypeCCons[U, L, R <: Coproduct, O <: Coproduct](implicit tr: TagWithType.Aux[R, U, O])
+    : TagWithType.Aux[L :+: R, U, (L @@@ U) :+: O] =
+    new TagWithType[L :+: R, U] {
+      type Out = (L @@@ U) :+: O
+      def wrap(source: L :+: R): (L @@@ U) :+: O = source match {
+        case Inl(left) => Inl(SourceTypeTag[U].attachTo(left))
+        case Inr(right) => Inr(tr.wrap(right))
+      }
+      def unwrap(source: (L @@@ U) :+: O): L :+: R = source match {
+        case Inl(left) => Inl(left)
+        case Inr(right) => Inr(tr.unwrap(right))
       }
     }
 }

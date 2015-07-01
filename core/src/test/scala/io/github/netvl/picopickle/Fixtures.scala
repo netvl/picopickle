@@ -29,6 +29,12 @@ object Fixtures {
     case class B(x: Int, @key("zzz") y: String) extends Root
   }
 
+  object CustomDiscriminatorKeys {
+    @discriminator("whatever") sealed trait Root
+    case object A extends Root
+    case class B(x: Int) extends Root
+  }
+
   object Defaults {
     sealed trait Root
     case class A(x: Int, name: String = "me", enabled: Boolean = false) extends Root

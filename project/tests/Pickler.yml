@@ -298,6 +298,22 @@ cases:
               .append("$variant", new BsonString("B"))
               .append("x", new BsonInt32(12))
               .append("zzz", new BsonString("hello"))
+  - name: sealed trait hierarchy with renamed discriminator key
+    prepend: |
+      import CustomDiscriminatorKeys._
+    rw:
+      - type: Root
+        items:
+          - 'A'
+          - 'Map("whatever" -> "A")'
+          - '"""{"whatever":"A"}"""'
+          - 'new BsonDocument().append("whatever", new BsonString("A"))'
+      - type: Root
+        items:
+          - 'B(42)'
+          - 'Map("whatever" -> "B", "x" -> 42)'
+          - '"""{"whatever":"B","x":42}"""'
+          - 'new BsonDocument().append("whatever", new BsonString("B")).append("x", new BsonInt32(42))'
   - name: case classes with default values
     prepend: |
       import Defaults._
