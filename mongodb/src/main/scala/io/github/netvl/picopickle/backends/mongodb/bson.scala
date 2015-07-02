@@ -1,5 +1,7 @@
 package io.github.netvl.picopickle.backends.mongodb
 
+import java.util.Date
+
 import _root_.io.github.netvl.picopickle.{TypesComponent, DefaultPickler, ExceptionsComponent, BackendComponent}
 import org.bson._
 import org.bson.types.ObjectId
@@ -40,6 +42,12 @@ trait MongodbBsonSerializersComponent {
   implicit val bsonDateTimeReadWriter: ReadWriter[BsonDateTime] = identityBsonReadWriter[BsonDateTime]
   implicit val bsonBinaryReadWriter: ReadWriter[BsonBinary] = identityBsonReadWriter[BsonBinary]
   implicit val bsonSymbolReadWriter: ReadWriter[BsonSymbol] = identityBsonReadWriter[BsonSymbol]
+
+  // TODO: add a test for this
+  implicit val dateReadWriter: ReadWriter[Date] = ReadWriter.writing[Date](d => backend.makeDateTime(d.getTime))
+    .reading {
+      case backend.BsonExtract.DateTime(ts) => new Date(ts)
+    }.orThrowing(whenReading = "date", expected = "datetime")
 
   implicit val symbolReadWriter: ReadWriter[Symbol] = ReadWriter.writing(backend.makeSymbol)
     .reading {
