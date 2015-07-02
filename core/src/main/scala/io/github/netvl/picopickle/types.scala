@@ -276,8 +276,8 @@ trait TypesComponent {
     def reading[T](f: PF[backend.BValue, T]): ReaderBuilder[T] = new ReaderBuilder[T](f)
 
     class ReaderBuilder[T](f: PF[backend.BValue, T]) {
-      def orThrowing(message: backend.BValue => String): Reader[T] = Reader(f orElse {
-        case value => throw ReadException(message(value), data = value)
+      def orThrowing(fmt: backend.BValue => String): Reader[T] = Reader(f orElse {
+        case value => customReadError(fmt)(value)
       })
       def orThrowing(whenReading: => String, expected: => String): Reader[T] = Reader(f orElse {
         case value => parameterizedReadError(whenReading, expected)(value)
@@ -301,6 +301,7 @@ trait TypesComponent {
     class WriterBuilder[T](rf: PF[backend.BValue, T], error: backend.BValue => Nothing) {
       def writing(wf: T => backend.BValue) = new PfReadWriter[T](rf, wf, error)
       def orThrowing(whenReading: => String, expected: => String) = new WriterBuilder[T](rf, parameterizedReadError(whenReading, expected))
+      def orThrowing(fmt: backend.BValue => String) = new WriterBuilder[T](rf, customReadError(fmt))
     }
 
     class ReaderBuilder[T](wf: T => backend.BValue) {
@@ -312,6 +313,8 @@ trait TypesComponent {
                                                error: backend.BValue => Nothing) extends Reader[T] with Writer[T] {
       def orThrowing(whenReading: => String, expected: => String): ReadWriter[T] =
         new PfReadWriter[T](rf, wf, parameterizedReadError(whenReading, expected))
+      def orThrowing(fmt: backend.BValue => String): ReadWriter[T] =
+        new PfReadWriter[T](rf, wf, customReadError(fmt))
 
       override def canRead(value: backend.BValue) = nullHandler.canRead(value, rf.isDefinedAt)
 
@@ -329,5 +332,7 @@ trait TypesComponent {
     throw ReadException(s"unexpected backend value: $v", data = v)
   private def parameterizedReadError(reading: => String, expected: => String)(value: backend.BValue): Nothing =
     throw ReadException(reading, expected, value)
+  private def customReadError(fmt: backend.BValue => String)(value: backend.BValue): Nothing =
+    throw ReadException(fmt(value), data = value)
 }
 
