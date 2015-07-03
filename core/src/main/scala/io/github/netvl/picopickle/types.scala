@@ -225,8 +225,16 @@ trait TypesComponent {
     final def andThen[U](f: T => U): Reader[U] = new Reader[U] {
       override def canRead(value: backend.BValue) = source.canRead(value)
       override def read(value: backend.BValue): U = f(source.read(value))
+      override def readOrElse(value: backend.BValue, fallback: backend.BValue => U): U = {
+        val result = source.readOrElse(value, checkFallback[T])
+        if (!fallbackOccured(result)) f(result) else fallback(value)
+      }
     }
   }
+
+  private[this] val fallbackF: Any => Any = x => x
+  private def checkFallback[B] = fallbackF.asInstanceOf[Any => B]
+  private def fallbackOccured[B](x: B) = fallbackF eq fallbackF.asInstanceOf[AnyRef]
 
   /**
    * Contains various constructors for custom [[Reader Readers]].

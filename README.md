@@ -1065,6 +1065,41 @@ Object graphs with circular loops are not supported and will cause stack overflo
 because it is only possible to construct such graphs when at least a part of them is mutable (e.g. a `var` field
 or a mutable collection) which is discouraged in idiomatic Scala code.
 
+Due to limitations of how Scala reflection/macros work, it is better not to re-define serializers in the same
+place as the serialized classes if these classes form a sealed trait hierarchy. For example, something like this
+won't work:
+
+```scala
+object Serializers {
+  import SomePickler._
+  
+  sealed trait Root
+  case class A(x: Int) extends Root
+  case object B extends Root
+  
+  implicit val rootReadWriter = ReadWriter[Root]
+}
+```
+
+This won't compile because it is impossible to inspect the sealed trait hierarchy of `Root` at the point where
+a `LabelledGeneric` is materialized here (in the implicit parameters of `ReadWriter[Root]` call). If you want to
+pre-generate serializers for your classes, write them in another object:
+
+```scala
+object Classes {
+  sealed trait Root
+  case class A(x: Int) extends Root
+  case object B extends Root
+}
+
+object Serializers {
+  import SomePicker._
+  import Classes._
+  
+  implicit val rootReadWriter = ReadWriter[Root]
+}
+```
+
 
 Plans
 -----
