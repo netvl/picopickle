@@ -1,0 +1,58 @@
+This release contains a lot of changes and new features.
+
+* Updated shapeless to 2.3.3, jawn to 0.8.8, scala to 2.11.7.
+
+  In particular, updating shapeless allowed using picopickle with case classes with variable arguments.
+  
+* Improved reader interface - added `readOrElse` method and changed existing code to depend on it.
+
+  `readOrElse` is borrowed from `PartialFunction` trait where it is called `applyOrElse`. It is an
+  important method for optimization because it allows checking whether a function (reader) can be
+  applied to a value and apply it to this value at the same time. Now `Reader` trait has this method
+  and it is defined and used correctly by the built-in `Reader` combinators, in particular,
+  for error checks.
+  
+* Added proper error handling.
+
+  While writing data to backend representation is usually an error-free operation (if there is a writer
+  for some type, it should handle all values of this type), reading data from the backend representation
+  is a source of errors. This happens because the backend representation has much weaker typing guarantees
+  than Scala code and can't correspond directly to Scala types.
+  
+  Previously picopickle didn't provide any special error handling. If the backend value couldn't be
+  deserialized, picopickle would throw some obscure `MatchError` or `IllegalArgumentException`. Since
+  0.2.0 picopickle has a proper exception system, and if a read error occurs, the exception would contain
+  much more information about what was expected and what was actually found. You can find more on it
+  in [Readme][readme-error-handling].
+  
+* Added new BSON-based backend.
+
+  A new officially supported backend has been added. It uses [MongoDB BSON][mongodb-bson] data types
+  as the backend representation.
+  
+  With this backend it is possible to use picopickle for serialization using the official Mongo drivers.
+  
+  It also serves as an example extended backend implementation with more types than the basic backend
+  supports.
+
+* Added support for changing STH discriminator key on per-STH basis.
+
+  It is now possible to change sealed trait hierarchy discriminator key for each sealed trait separately:
+  
+  ```scala
+  @discriminator("status") sealed trait Root
+  case object Stopped extends Root
+  case class Running(name: String) extends Root
+  
+  writeString[Root](Stopped)       shouldEqual """{"status":"Stopped"}"""
+  writeString[Root](Running("me")) shouldEqual """{"status":"Running","name":"me"}"""
+  ```
+  
+  This allows even more flexibility in defining serialization formats, especially when matching some
+  existing interface.
+  
+More information can be found in the [readme](https://github.com/netvl/picopickle#readme).
+
+  [readme-error-handling]: https://github.com/netvl/picopickle#error-handling
+  [mongodb-bson]: http://mongodb.github.io/mongo-java-driver/3.0/bson/
+  
