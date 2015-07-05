@@ -70,17 +70,17 @@ trait PrimitiveReaders {
     case backend.Extract.Object(m) if m.isEmpty => ()
   }.orThrowing(whenReading = "unit", expected = "empty object")
 
-  protected final def numReader[T](f: Number => T): Reader[T] = Reader.reading {
+  protected final def numReader[T](name: String, f: Number => T): Reader[T] = Reader.reading {
     case n if backend.fromNumberAccurately.isDefinedAt(n) =>
       f(backend.fromNumberAccurately(n))
-  }.orThrowing(whenReading = "number", expected = backend.fromNumberAccuratelyExpected)
+  }.orThrowing(whenReading = name, expected = backend.fromNumberAccuratelyExpected)
 
-  implicit val byteReader: Reader[Byte] = numReader(_.byteValue())
-  implicit val shortReader: Reader[Short] = numReader(_.shortValue())
-  implicit val intReader: Reader[Int] = numReader(_.intValue())
-  implicit val longReader: Reader[Long] = numReader(_.longValue())
-  implicit val floatReader: Reader[Float] = numReader(_.floatValue())
-  implicit val doubleReader: Reader[Double] = numReader(_.doubleValue())
+  implicit val byteReader: Reader[Byte] = numReader("byte", _.byteValue())
+  implicit val shortReader: Reader[Short] = numReader("short", _.shortValue())
+  implicit val intReader: Reader[Int] = numReader("int", _.intValue())
+  implicit val longReader: Reader[Long] = numReader("long", _.longValue())
+  implicit val floatReader: Reader[Float] = numReader("float", _.floatValue())
+  implicit val doubleReader: Reader[Double] = numReader("double", _.doubleValue())
 
   implicit val charReader: Reader[Char] = Reader.reading {
     case backend.Extract.String(s) => s.charAt(0)

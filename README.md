@@ -59,7 +59,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.4"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.0"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -83,7 +83,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.4"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.0"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -946,7 +946,7 @@ This is what usually expected in such situation.
 
 ### <a name="varargs"> Varargs
 
-Since version 0.1.4 picopickle supports reading and writing case classes with variable arguments. All of
+Since version 0.2.0 picopickle supports reading and writing case classes with variable arguments. All of
 the arguments passed to such case class will be serialized as an array:
 
 ```scala
@@ -1025,7 +1025,7 @@ picopickle has several "official" backends. One of them, provided by `picopickle
 into a tree of collections. This backend is available immediately with only the `core` dependency:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.1.4"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.0"
 ```
 
 In this backend the following AST mapping holds:
@@ -1063,7 +1063,7 @@ Another official backend is used for conversion to and from JSON. JSON parsing i
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.1.4"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.0"
 ```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
@@ -1076,23 +1076,188 @@ Usually the last pair of methods is what you want to use when you want to work w
 
 No support for streaming serialization is available and is not likely to appear in the future because of the
 abstract nature of backends (not every backend support streaming, for example, collections backend doesn't) and
-because it would require completely different architecture.
+because it would require a completely different architecture.
 
 ### <a name="bson-pickler"> BSON pickler
 
-TODO
+Another official backend is used for conversion to and from BSON AST, as defined by [MongoDB BSON][bson] library.
+
+```scala
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-mongodb-bson" % "0.2.0"
+```
+
+In this backend the following AST mapping holds:
+
+```
+BValue   -> BsonValue
+BObject  -> BsonDocument
+BArray   -> BsonArray
+BString  -> BsonString
+BNumber  -> BsonNumber
+BBoolean -> BsonBoolean
+BNull    -> BsonNull
+```
+
+BSON backend also defines additional types as follows:
+
+```
+BObjectId -> BsonObjectId
+BInt32    -> BsonInt32
+BInt64    -> BsonInt64
+BDouble   -> BsonDouble
+BDateTime -> BsonDateTime
+BBinary   -> BsonBinary
+BSymbol   -> BsonSymbol
+```
+
+Additional functions for conversion from Scala core types to these types are available in the
+backend:
+
+```scala
+  def fromBinary(bin: BBinary): Array[Byte]
+  def makeBinary(arr: Array[Byte]): BBinary
+  def getBinary(value: BValue): Option[BBinary]
+  
+  def fromObjectId(oid: BObjectId): ObjectId
+  def makeObjectId(oid: ObjectId): BObjectId
+  def getObjectId(value: BValue): Option[BObjectId]
+  
+  def fromDateTime(dt: BDateTime): Long
+  def makeDateTime(n: Long): BDateTime
+  def getDateTime(value: BValue): Option[BDateTime]
+
+  def fromSymbol(sym: BSymbol): Symbol
+  def makeSymbol(sym: Symbol): BSymbol
+  def getSymbol(value: BValue): Option[BSymbol]
+
+  def fromInt32(n: BInt32): Int
+  def makeInt32(n: Int): BInt32
+  def getInt32(value: BValue): Option[BsonInt32]
+
+  def fromInt64(n: BInt64): Long
+  def makeInt64(n: Long): BInt64
+  def getInt64(value: BValue): Option[BsonInt64]
+
+  def fromDouble(n: BDouble): Double
+  def makeDouble(n: Double): BDouble
+  def getDouble(value: BValue): Option[BsonDouble]
+```
+
+Corresponding extractors are available in `backend.BsonExtract` object, and backend conversion
+implicits are defined in `backend.bsonConversionImplicits`:
+
+```scala
+  Reader {
+    case backend.BsonExtract.ObjectId(oid) =>
+      // oid: backend.BObjectId == org.bson.BsonObjectId
+  }
+  
+  import backend.bsonConversionImplicits._
+  
+  val bin: backend.BBinary = Array[Byte](1, 2, 3).toBackend
+```
+
+This backend overrides numerical readers and writers to serialize Scala numbers to the smallest
+type possible, i.e. `Byte`, `Short` and `Int` are serialized as `BInt32`, `Long` is serialized
+as `BInt64`, and `Float` and `Double` are serialized as `BDouble`. You can see that in this backend 
+there is no need to use additional measures to serialize numbers accurately.
+
+This backend also provides serializers for `Array[Byte]`, `Symbol`, `Date` and `ObjectId` types
+which are serialized as `BBinary`, `BSymbol`, `BDateTime` and `BObjectId`, respectively.
+
+And finally, this backend provides identity serializers for all `BValue` children types, that is,
+it serializes `BValue` as `BValue`, `BString` as `BString`, `BInt64` as `BInt64` and so on.
+
+  [bson]: http://mongodb.github.io/mongo-java-driver/3.0/bson/
 
 <a name="error-handling"> Error handling
 ----------------------------------------
 
 While serialization is straightforward and should never fail (if it does, it is most likely a bug in the library
 or in some `Writer` implementation), deserialization is prone to errors because the serialized representation usually
-has free-form structure and is not statically mapped on its Scala representation. However, picopickle does not
-currently have special handling for deserialization errors. Expect arbitrary `NoSuchElementException`s and
-`MatchError`s from `read()` calls unless you know in advance that your data is correct.
+has free-form structure and is not statically mapped on its Scala representation.
 
-This is going to change in the nearest future; some special kinds of exceptions are going to be introduced,
-and safe methods like `readSafely[T](value: backend.BValue): Try[T]` are likely to be added.
+picopickle has a special exception type which is thrown upon deserialization errors. This exception is defined
+in `ExceptionsComponent` like this:
+
+```scala
+  case class ReadException(message: String, data: backend.BValue, cause: Throwable = null)
+    extends BaseException(message, cause)
+
+  object ReadException {
+    def apply(reading: String, expected: String, got: backend.BValue): ReadException =
+      ReadException(s"reading $reading, expected $expected, got $got", data = got)
+  }
+```
+
+When deserialization of some type is attempted over a backend representation which is incompatible with
+the requested type, for most of the built-in deserializers the exception will contain the message about
+what was being read, what was expected and what was actually provided to the deserializer:
+
+```scala
+readString[Int]("""{"some":"thing"}""")
+io.github.netvl.picopickle.ExceptionsComponent$ReadException: reading number, expected number or string containing a number, got JsonObject(Map(some -> JsonString(thing)))
+```
+
+You can participate in this exception handling with your own deserializers very easily. `Reader` and `ReadWriter`
+has certain methods to create deserializers which allow you to use custom messages for errors:
+
+```scala
+case class A(name: String)
+
+// Pre-defined message format, like above
+Reader.reading[A] {
+  case backend.Extract.String(s) => A(s)
+}.orThrowing(whenReading = "A", expected = "string")
+
+// Arbitrary custom message
+Reader.reading[A] {
+  case backend.Extract.String(s) => A(s)
+}.orThrowing(v => s"Got $v instead of string when reading A")
+
+// ReadWriters also can be customized
+ReadWriter.writing[A](_.name.toBackend)
+  .reading { case backend.Extract.String(s) => A(s) }
+  .orThrowing(whenReading = "A", expected = "string")
+  
+// Works in any order
+ReadWriter.reading[A] { case backend.Extract.String(s) => A(s) }
+  .orThrowing(whenReading = "A", expected = "string")
+  .writing(_.name.toBackend)
+```
+
+In readers constructed in the above form the error will be thrown when the partial function
+used for reading is not defined on the incoming value. That is, the following reader
+won't ever throw a `ReadException`:
+
+```scala
+Reader.reading[A] {
+  case value => A(backend.fromString(value.asInstanceOf[BString]))
+}.orThrowing(whenReading = "A", expected = "string")
+```
+
+It will throw a `ClassCastException` instead if something which is not a string is supplied.
+
+If you still need to use a catch-all partial function for a reader, you can always throw a `ReadException`
+yourself:
+
+```scala
+Reader[A] {
+  case value => if (value.isInstanceOf[String]) A(backend.fromString(value.asInstanceOf[BString])
+                else throw ReadException(reading = "A", expected = "string", got = value)
+}
+```
+
+While the example above is absolutely contrived, there are legitimate use cases for it.
+
+Additional backend implementations may inherit `ExceptionsComponent.BaseException` to implement custom
+errors. For example, this is done in JSON backend to wrap a Jawn parse exception.
+
+Finally, `Pickler` trait provides `tryRead()` method which returns `Try[T]` instead of `T` returned
+by `read()`. This method never throws any exceptions and instead returns them as a `Failure` variant
+of `Try[T]`. Serializer objects also have such methods, as well as official backends with custom 
+serialization methods, like Jawn's `tryReadString()`.
+
 
 <a name="limitations"> Limitations
 ----------------------------------
@@ -1161,9 +1326,9 @@ object Serializers {
 * Updated shapeless to 2.3.3, jawn to 0.8.8, scala to 2.11.7
 * Fixed support for varargs (consequence of shapeless update)
 * Improved reader interface (added `readOrElse` method and changed existing code to depend on it)
-* Added proper error handling
-* Added new BSON-based backend
-* Added support for changing STH discriminator key on per-STH basis
+* Added proper error handling (#2)
+* Added new BSON-based backend (#6)
+* Added support for changing STH discriminator key on per-STH basis (#7)
 
 ### 0.1.3
 

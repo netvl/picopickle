@@ -12,13 +12,6 @@ trait MongodbBsonBackendComponent extends BackendComponent {
   override val backend = MongodbBsonBackend
 }
 
-trait MongodbBsonExceptionsComponent extends ExceptionsComponent {
-  this: BackendComponent =>
-
-  case class BsonParseException(message: String, cause: Throwable)
-    extends BaseException(message, cause)
-}
-
 trait MongodbBsonSerializersComponent {
   this: MongodbBsonBackendComponent with TypesComponent =>
 
@@ -84,6 +77,5 @@ trait MongodbBsonPickler
   extends DefaultPickler
   with MongodbBsonBackendComponent
   with MongodbBsonSerializersComponent
-  with MongodbBsonExceptionsComponent
 
 object MongodbBsonPickler extends MongodbBsonPickler
