@@ -27,6 +27,7 @@ Contents
   + [Serializer objects](#serializer-objects)
   + [Custom picklers](#custom-picklers)
   + [Backends](#backends)
+  + [Extending backends](#extending-backends)
   + [Creating custom serializers](#creating-custom-serializers)
   + [Extractors and backend conversion implicits](#extractors-and-backend-conversion-implicits)
 * [Converters](#converters)
@@ -52,7 +53,7 @@ Contents
 * [Limitations](#limitations)
 * [Changelog](#changelog)
 
-<a name="getting-started"> Getting started
+<a name="getting-started"></a> Getting started
 ------------------------------------------
 
 The library is published to the Maven central, so you can just add the following line
@@ -75,7 +76,7 @@ Scala 2.11 users do not need this as all relevant macro support is already prese
 
   [Macro Paradise]: http://docs.scala-lang.org/overviews/macros/paradise.html
 
-### <a name="backend-dependencies"> Backend dependencies
+### <a name="backend-dependencies"></a> Backend dependencies
 
 Picopickle supports different *backends*. A backend defines the target serialization format,
 for example, JSON, BSON or just regular collections. The core library provides collections
@@ -97,7 +98,7 @@ available later.
 
   [Jawn]: https://github.com/non/jawn
 
-<a name="serialization-mechanism"> Serialization mechanism
+<a name="serialization-mechanism"></a> Serialization mechanism
 ----------------------------------------------------------
 
 picopickle uses the pretty standard typeclass approach where the way the type is serialized
@@ -134,10 +135,10 @@ case class C(next: Root) extends Root  // depends on the sealed trait
 picopickle also supports default values and variable arguments in case classes and renaming of fields 
 or sealed trait descendants with a bit of custom macros.
 
-<a name="usage"> Usage
+<a name="usage"></a> Usage
 -----
 
-### <a name="basic-usage"> Basic usage
+### <a name="basic-usage"></a> Basic usage
 
 picopickle is structured using the cake pattern, that is, it consists of several traits providing
 parts of the functionality which are then combined into a single object called a *pickler*. It
@@ -177,7 +178,7 @@ readString[A]("""{"x":10,"y":"hi"}""") shouldEqual A(10, "hi")
 
 Currently the string JSON representation is not prettified (but prettification may be implemented in later versions).
 
-### <a name="serializer-objects"> Serializer objects
+### <a name="serializer-objects"></a> Serializer objects
 
 Sometimes you need to work with serialization and deserializaton in the same piece of code (e.g. writing and reading
 data from database). Then it would be convenient to have `read` and `write` methods fixed for some specific type,
@@ -214,7 +215,7 @@ aSerializer.writeString(A(10, "hi")) shouldEqual """{"x":10,"y":"hi"}"""
 aSerializer.readString("""{"x":10,"y":"hi"}""") shouldEqual A(10, "hi")
 ```
 
-### <a name="custom-picklers"> Custom picklers
+### <a name="custom-picklers"></a> Custom picklers
 
 It is possible that you would want to define custom serializers for some of your
 types. In that case you can define custom serializer instances in a trait which "depends" on
@@ -264,10 +265,36 @@ object CustomPickler extends JsonPickler {
 }
 ```
 
+Alternatively, you can import internals of some pickler and define serializers anywhere, but then you need
+to add an import for wherever these serializers are defined in:
+
+```
+object CustomPickler extends JsonPickler
+
+object CustomSerializers {
+  import CustomPickler._
+  
+  implicit val definedByIntWriter: Writer[DefinedByInt] = Writer {
+    case DefinedByInt(x, _) => backend.makeNumber(x)
+  }
+ 
+  implicit val definedByIntReader: Reader[DefinedByInt] = Reader {
+    case backend.Extract.Number(x) => DefinedByInt(x.intValue(), x.intValue().toString)
+  }
+}
+
+import CustomSerializers._
+
+CustomPickler.write(DefinedByInt(10, "10")) shouldEqual """10"""
+```
+
+This way also prohibits you from using the same serializers for different kinds of picklers in your
+program.
+
 picopickle provides several utilities which help you writing custom serializers and deserializers; at first, however,
 we need to explain what backends are.
 
-### <a name="backends"> Backends
+### <a name="backends"></a> Backends
 
 A *backend* in picopickle defines an intermediate AST called *backend representation* which is the media
 which values of other types can be serialized into. For example, for JSON it is JSON AST, that is, a set of classes
@@ -353,7 +380,86 @@ mix in only those traits you need. See `DefaultPickler` documentation to find ou
 
 After this `MyPickler.read` and `MyPickler.write` methods will work with your backend representation.
 
-### <a name="creating-custom-serializers"> Creating custom serializers
+### <a name="extending-backends"></a> Extending backends
+
+Sometimes the set of types and methods provided by the default `Backend` trait is simply not enough
+because the desired target representation supports more types. One example is BSON, which supports,
+aside from all the standard JSON types, also things like date and time, object ids, explicit 32-bit
+and 64-bit integers and byte arrays. Naturally, one would like to automatically serialize Scala types
+to the most efficient representation available.
+
+picopickle is extensible in this regard too. Because backends are just implementations of one trait,
+nothing prevents you adding new concrete types into your backend implementation, adding new conversion
+functions and build your own serializers which make use of these functions:
+
+```scala
+// Define a new backend
+object BsonBackend extends Backend {
+  // implement required types
+  override type BValue = BsonValue
+  override type BObject = BsonDocument
+  ...
+  
+  // add new types
+  type BObjectId = BsonObjectId
+  type BInt32 = BsonInt32
+  type BInt64 = BsonInt64
+  ...
+  
+  // add new conversion functions, possibly following the existing interface
+  def fromObjectId(oid: BObjectId): ObjectId = ...
+  def makeObjectId(oid: ObjectId): BObjectId = ...
+  def getObjectId(value: BValue): BObjectId = ...
+  
+  def fromInt32(n: BInt32): Int = ...
+  ...
+  
+  def fromInt64(n: BInt64): Long = ...
+  ...
+}
+
+// define a backend component
+trait BsonBackendComponent extends BackendComponent {
+  override val backend = BsonBackend
+}
+
+// define a trait with custom serializers
+trait BsonBackendSerializers {
+  // it should depend on the concrete BsonBackendComponent, not on generic BackendComponent
+  this: BsonBackendComponent with TypesComponent =>
+  
+  import backend._
+  
+  // and here we can use all custom functions defined in the custom backend
+  
+  implicit val objectIdReadWriter: ReadWriter[ObjectId] = 
+    ReadWriter.writing(backend.makeObjectId).reading {
+      case bv: BObjectId => backend.fromObjectId(bv)
+    }
+    
+  implicit val intReadWriter: ReadWriter[Int] =
+    ReadWriter.writing(backend.makeInt32).reading {
+      case bv: BInt32 => backend.fromInt32(bv)
+    }
+  
+  ...
+}
+
+// finally, define the pickler trait by mixing it all together
+trait BsonPickler extends DefaultPickler with BsonBackendComponent with BsonBackendSerializers
+object BsonPickler extends BsonPickler
+```
+
+Note that picklers defined in the custom trait will have a greater priority than picklers inherited
+from the `DefaultPickler` trait. Therefore, `intReadWriter` defined in the trait above
+will be used instead of the `intReader`/`intWriter` pair defined in `PrimitiveReadWritersComponent`
+which is inherited by `DefaultPickler`.
+
+You can find an example of this technique in the [official BSON backend implementation][bson-backend].
+
+  [bson-backend]: https://github.com/netvl/picopickle/blob/master/mongodb/src/main/scala/io/github/netvl/picopickle/backends/mongodb/bson.scala
+
+### <a name="creating-custom-serializers"></a> Creating custom serializers
 
 picopickle defines `Writer` and `Reader` basic types in `TypesComponent` which are called *serializers*. 
 They are responsible for converting arbitrary types to their backend representation and back, respectively. 
@@ -389,7 +495,7 @@ implicit val definedByIntReadWriter: ReadWriter[DefinedByInt] = ReadWriter.readi
 
 You can switch `reading`/`writing` branches order if you like.
 
-### <a name="extractors-and-backend-conversion-implicits"> Extractors and backend conversion implicits
+### <a name="extractors-and-backend-conversion-implicits"></a> Extractors and backend conversion implicits
 
 `Backend` trait provides methods to create and deconstruct objects of backend representation: these are `make*`,
 `from*` and `get*` methods described above. To simplify writing custom serializers, however, picopickle
@@ -439,7 +545,7 @@ val s: backend.BString = backend.makeString("hello world")
 
 These implicit methods are somewhat more convenient than `make*` functions.
 
-<a name="converters"> Converters
+<a name="converters"></a> Converters
 --------------------------------
 
 Low-level conversions, however, may be overly verbose to write. picopickle provides a declarative way of
@@ -570,7 +676,7 @@ val optionStringConv: Converter.Id[Option[String]] = value[Option[String]]
 
 You can find more on converters in their Scaladoc section (**TODO**).
 
-<a name="supported-types"> Supported types
+<a name="supported-types"></a> Supported types
 ------------------------------------------
 
 By default picopickle provides a lot of serializers for various types which do their
@@ -597,7 +703,7 @@ import io.github.netvl.picopickle.backends.jawn.JsonPickler._
 
 is present in the code.
 
-### <a name="primitives-and-basic-types"> Primitives and basic types
+### <a name="primitives-and-basic-types"></a> Primitives and basic types
 
 picopickle natively supports serialization of all primitive and basic types:
 
@@ -631,7 +737,7 @@ explanation.
 
 Please note that `Either[L, R]` serialization format is not final and can change in future versions.
 
-### <a name="numbers-and-accuracy"> Numbers and accuracy
+### <a name="numbers-and-accuracy"></a> Numbers and accuracy
 
 Most JSON libraries represent numbers as 64-bit floats, i.e. `Double`s, but some numerical values do not fit into
 `Double`, and rounding occurs:
@@ -653,7 +759,7 @@ The same mechanism will probably be used when `BigInt`/`BigDecimal` handlers wil
 In some backends, however, this behavior can be overridden, as is done, for example, in the 
 official BSON backend.
 
-### <a name="tuples"> Tuples
+### <a name="tuples"></a> Tuples
 
 Tuples are serialized as arrays:
 
@@ -672,7 +778,7 @@ Naturally, all elements of tuples must be serializable as well.
 Tuple serializer instances are generated as a part of build process, and currently only
 tuples with the length up to and including 22 are supported.
 
-### <a name="collections"> Collections
+### <a name="collections"></a> Collections
 
 Most of Scala collections library classes are supported, including all of the abstract ones below the `Iterable`,
 as well as arrays:
@@ -706,7 +812,7 @@ use concrete collection types, however, there could be problems. picopickle has 
 the main concrete implementations, but not for all of them. If you need something which is not present in the
 library, feel free to file an issue.
 
-### <a name="map-serialization-with-non-string-keys"> Map serialization with non-string keys
+### <a name="map-serialization-with-non-string-keys"></a> Map serialization with non-string keys
 
 JSON-like languages usually don't allow using non-string values as object keys, and picopickle enforces this
 restriction by its `BObject` representation which requires string keys. However, this is sometimes overly restrictive,
@@ -744,12 +850,13 @@ because keys are easily converted to and from strings. In picopickle, however, o
 can be directly serialized as objects.
 
 To allow this kind of pattern, picopickle provides a way to define custom converters for map keys. When a map
-with keys of type `T` is serialized or deserialized, if there is an instance of type 
+with keys of type `T` is serialized or deserialized, and if there is an instance of type 
 `ObjectKeyReader[T]`/`ObjectKeyWriter[T]`/`ObjectKeyReadWriter[T]` in scope, then it will be used to obtain
 a `String` from `T` (or vice versa) which will then be used as an object key:
 
 ```scala
 implicit val userIdObjectKeyReadWriter = ObjectKeyReadWriter(_.id, UserId)
+
 // below a `_.toString` conversion is implicitly used
 implicit val entityPathObjectKeyReadWriter = ObjectKeyReadWriter(EntityPath.fromString)
 
@@ -759,7 +866,7 @@ write[UserMap](Map(UserId("u1") -> ..., UserId("u2") -> ...)) shouldEqual
 write[EntityLocations](Map(EntityPath(Vector("a", "b")) -> ..., EntityPath(Vector("a", "c")) -> ...)) shouldEqual
   Map("a/b" -> ..., "a/c" -> ...)
 
-// reading works as well
+// reading works just as well
 ```
 
 However, with this flexibility in large codebases where one pickler is shared by lots of different classes it is easy 
@@ -802,7 +909,7 @@ it still disallows one to *accidentally* serialize maps as arrays of arrays and 
 by deliberate introduction of keys serializer, which looks like the most likely possibility of introducing
 such breaking changes.
 
-### <a name="sealed-trait-hierarchies"> Sealed trait hierarchies
+### <a name="sealed-trait-hierarchies"></a> Sealed trait hierarchies
 
 picopickle supports automatic serialization of sealed trait hierarchies (STH), that is, case classes, probably
 inheriting a sealed trait. In other words, picopickle can serialize algebraic data types.
@@ -851,7 +958,7 @@ Sealed trait hierarchies serialization is implemented using shapeless `LabelledG
 instances and a bit of custom macros which handle field renaming and default values (both are not supported by 
 shapeless natively).
 
-### <a name="changing-the-discriminator-key"> Changing the discriminator key
+### <a name="changing-the-discriminator-key"></a> Changing the discriminator key
 
 You can customize the discriminator key used by shapeless serializers by overriding
 `discriminatorKey` field defined in `io.github.netvl.picopickle.SealedTraitDiscriminator` trait
@@ -868,7 +975,24 @@ CustomPickler.writeString[Root](A) shouldEqual """{"$type":"A"}"""
 
 Of course, you can extract it into a separate trait and mix it into different picklers if you want.
 
-### <a name="serialization-of-optional-fields"> Serialization of optional fields
+Alternatively, since 0.2.0 you can specify the discriminator key for the specific sealed trait
+hierarchy by putting a `@discriminator` annotation on the sealed trait:
+
+```scala
+import io.github.netvl.picopickle.discriminator
+
+@discriminator("status") sealed trait Root
+case object Stopped extends Root
+case class Running(name: String) extends Root
+
+writeString[Root](Stopped)       shouldEqual """{status:"Stopped"}"""
+writeString[Root](Running("me")) shouldEqual """{status:"Running","name":"me"}"""
+```
+
+If `@discriminator` annotation is present, then its value will be used as discriminator key;
+otherwise, the default value from `discriminatorKey` pickler field will be used.
+
+### <a name="serialization-of-optional-fields"></a> Serialization of optional fields
 
 If a case class has a field of type `Option[T]`, then this field is serialized in a different way than
 a regular option: if the value of the field is `None`, then the corresponding key will be absent from the serialized
@@ -900,7 +1024,7 @@ writeString(A(Some(None)))      shouldEqual """{"x":[]}"""
 writeString(A(Some(Some(10L)))) shouldEqual """{"x":[10]}"""
 ```
 
-### <a name="renaming-fields-and-sealed-trait-variants"> Renaming fields and sealed trait variants
+### <a name="renaming-fields-and-sealed-trait-variants"></a> Renaming fields and sealed trait variants
 
 picopickle also provides an ability to rename fields and STH variant labels. This can be done by annotating
 fields with `@key` annotation:
@@ -918,7 +1042,7 @@ writeString[Root](B(10, false)) shouldEqual """{"$variant":"1","a":10,"b":false}
 
 Keys always are strings, though.
 
-### <a name="default-values-of-case-class-fields"> Default values of case class fields
+### <a name="default-values-of-case-class-fields"></a> Default values of case class fields
 
 picopickle also respects default values defined in a case class, which simplifies changes in your data classes
 even more. If a field has a default value and the serialized object does not contain the corresponding field,
@@ -944,7 +1068,7 @@ readString[A]("{}") shouldEqual A(Some(10))  // not A(None)
 
 This is what usually expected in such situation.
 
-### <a name="varargs"> Varargs
+### <a name="varargs"></a> Varargs
 
 Since version 0.2.0 picopickle supports reading and writing case classes with variable arguments. All of
 the arguments passed to such case class will be serialized as an array:
@@ -957,7 +1081,7 @@ writeString(A(1, 2, 3)) shouldEqual """{"x":[1,2,3]}"""
 
 Naturally, all elements of this array are serialized with their respective serializers.
 
-### <a name="nulls"> Nulls
+### <a name="nulls"></a> Nulls
 
 `null` value, as is widely known, tends to cause problems, and it is discouraged in idiomatic Scala code.
 Unfortunately, sometimes you need to interact with external systems which do use nulls. JSON has null value as well.
@@ -976,7 +1100,7 @@ trait NullHandler {
 }
 ```
 
-That is, it is some kind of a preprocessor which inspects the passed value for nulls and can [de]serialize them
+That is, it is a kind of a preprocessor which inspects the passed value for nulls and can [de]serialize them
 specially or prohibit the [de]serialization at all.
 
 By default picopickle allows nulls everywhere (`DefaultPickler` includes `DefaultNullHandlerComponent`). That is,
@@ -995,7 +1119,7 @@ trait MyJsonPickler extends JsonPickler with ProhibitiveNullHandlerComponent
 As long as you use `Reader`/`Writer` companion objects or converters to create your custom serializers,
 the null handling behavior will be consistent for all types handled by your pickler.
 
-### <a name="accurate-numbers-serialization"> Accurate numbers serialization
+### <a name="accurate-numbers-serialization"></a> Accurate numbers serialization
 
 Some backends do not allow serializing some numbers accurately. For example, most JSON implementations
 represent all numbers with 64-bit floating point numbers, i.e. `Double`s. Scala `Long`, for example,
@@ -1016,10 +1140,10 @@ picopickle also provides a special trait, `DoubleOrStringNumberRepr`, which prov
 as a `BNumber` if it can be represented precisely in `Double` as a `BString` otherwise.
 This trait is useful e.g. when writing a JSON-based backend.
 
-<a name="official-backends"> Official backends
+<a name="official-backends"></a> Official backends
 ----------------------------------------------
 
-### <a name="collections-pickler"> Collections pickler
+### <a name="collections-pickler"></a> Collections pickler
 
 picopickle has several "official" backends. One of them, provided by `picopickle-core` library, allows serialization
 into a tree of collections. This backend is available immediately with only the `core` dependency:
@@ -1057,7 +1181,7 @@ write(Map(1 -> 2, 3 -> 4))        ->  Vector(Vector(1, 2), Vector(3, 4))
 Collections pickler also do not use accurate number serialization because its backend representation is already
 as accurate as possible.
 
-### <a name="json-pickler"> JSON pickler
+### <a name="json-pickler"></a> JSON pickler
 
 Another official backend is used for conversion to and from JSON. JSON parsing is done with [jawn] library;
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
@@ -1078,7 +1202,7 @@ No support for streaming serialization is available and is not likely to appear 
 abstract nature of backends (not every backend support streaming, for example, collections backend doesn't) and
 because it would require a completely different architecture.
 
-### <a name="bson-pickler"> BSON pickler
+### <a name="bson-pickler"></a> BSON pickler
 
 Another official backend is used for conversion to and from BSON AST, as defined by [MongoDB BSON][bson] library.
 
@@ -1170,7 +1294,7 @@ it serializes `BValue` as `BValue`, `BString` as `BString`, `BInt64` as `BInt64`
 
   [bson]: http://mongodb.github.io/mongo-java-driver/3.0/bson/
 
-<a name="error-handling"> Error handling
+<a name="error-handling"></a> Error handling
 ----------------------------------------
 
 While serialization is straightforward and should never fail (if it does, it is most likely a bug in the library
@@ -1259,7 +1383,7 @@ of `Try[T]`. Serializer objects also have such methods, as well as official back
 serialization methods, like Jawn's `tryReadString()`.
 
 
-<a name="limitations"> Limitations
+<a name="limitations"></a> Limitations
 ----------------------------------
 
 picopickle does not support serializing `Any` in any form because it relies on the static knowledge of
@@ -1309,7 +1433,7 @@ object Serializers {
 ```
 
 
-<a name="plans"> Plans
+<a name="plans"></a> Plans
 ----------------------
 
 * Consider adding support for more types
@@ -1318,7 +1442,7 @@ object Serializers {
 * Add more documentation
 
 
-<a name="changelog"> Changelog
+<a name="changelog"></a> Changelog
 ------------------------------
 
 ### 0.2.0
