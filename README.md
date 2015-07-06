@@ -54,7 +54,7 @@ Contents
 * [Changelog](#changelog)
 
 <a name="getting-started"></a> Getting started
-------------------------------------------
+----------------------------------------------
 
 The library is published to the Maven central, so you can just add the following line
 to your `build.sbt` file in order to use the core library:
@@ -99,7 +99,7 @@ available later.
   [Jawn]: https://github.com/non/jawn
 
 <a name="serialization-mechanism"></a> Serialization mechanism
-----------------------------------------------------------
+--------------------------------------------------------------
 
 picopickle uses the pretty standard typeclass approach where the way the type is serialized
 or deserialized is defined through implicit objects (called `Reader[T]` and `Writer[T]` in picopickle)
@@ -136,7 +136,7 @@ picopickle also supports default values and variable arguments in case classes a
 or sealed trait descendants with a bit of custom macros.
 
 <a name="usage"></a> Usage
------
+--------------------------
 
 ### <a name="basic-usage"></a> Basic usage
 
@@ -546,7 +546,7 @@ val s: backend.BString = backend.makeString("hello world")
 These implicit methods are somewhat more convenient than `make*` functions.
 
 <a name="converters"></a> Converters
---------------------------------
+------------------------------------
 
 Low-level conversions, however, may be overly verbose to write. picopickle provides a declarative way of
 defining how the backend representation should be translated to the desired Scala objects and vice versa.
@@ -677,7 +677,7 @@ val optionStringConv: Converter.Id[Option[String]] = value[Option[String]]
 You can find more on converters in their Scaladoc section (**TODO**).
 
 <a name="supported-types"></a> Supported types
-------------------------------------------
+----------------------------------------------
 
 By default picopickle provides a lot of serializers for various types which do their
 best to represent their respective types in the serialized form as close as possible.
@@ -1141,7 +1141,7 @@ as a `BNumber` if it can be represented precisely in `Double` as a `BString` oth
 This trait is useful e.g. when writing a JSON-based backend.
 
 <a name="official-backends"></a> Official backends
-----------------------------------------------
+--------------------------------------------------
 
 ### <a name="collections-pickler"></a> Collections pickler
 
@@ -1295,7 +1295,7 @@ it serializes `BValue` as `BValue`, `BString` as `BString`, `BInt64` as `BInt64`
   [bson]: http://mongodb.github.io/mongo-java-driver/3.0/bson/
 
 <a name="error-handling"></a> Error handling
-----------------------------------------
+--------------------------------------------
 
 While serialization is straightforward and should never fail (if it does, it is most likely a bug in the library
 or in some `Writer` implementation), deserialization is prone to errors because the serialized representation usually
@@ -1384,7 +1384,7 @@ serialization methods, like Jawn's `tryReadString()`.
 
 
 <a name="limitations"></a> Limitations
-----------------------------------
+--------------------------------------
 
 picopickle does not support serializing `Any` in any form because it relies on the static knowledge of
 types being serialized. However, its design, as far as I can tell, in principle does not disallow writing
@@ -1434,16 +1434,17 @@ object Serializers {
 
 
 <a name="plans"></a> Plans
-----------------------
+--------------------------
 
 * Consider adding support for more types
 * Consider adding more converters (e.g. for tuples)
+* Add proper support for error handling in conversions
 * Add more tests
 * Add more documentation
 
 
 <a name="changelog"></a> Changelog
-------------------------------
+----------------------------------
 
 ### 0.2.0
 
