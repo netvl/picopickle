@@ -11,7 +11,6 @@ import sbt._
 import shapeless.syntax.typeable._
 import shapeless._
 
-import scala.collection.GenMap
 import scala.collection.convert.decorateAsScala._
 import scala.language.higherKinds
 
@@ -225,13 +224,6 @@ object YamlUtils {
 }
 
 object ImplicitUtils {
-  import scala.reflect.classTag
-
-  // XXX: for whatever reason since shapeless 2.2.3 we need this o_O
-  implicit def vectorTypeable[T](implicit t: Typeable[T]): Typeable[Vector[T]] = Typeable.genTraversableTypeable[Vector, T](
-    classTag[Vector[_]], t
-  )
-
   val `Map[String, Any]` = TypeCase[Map[String, Any]]
   val `Vector[Any]` = TypeCase[Vector[Any]]
 
