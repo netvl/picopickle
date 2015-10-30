@@ -2,7 +2,8 @@ package io.github.netvl.picopickle.backends.mongodb
 
 import java.util.Date
 
-import _root_.io.github.netvl.picopickle.{TypesComponent, DefaultPickler, ExceptionsComponent, BackendComponent}
+import _root_.io.github.netvl.picopickle.common.bson.BsonBinaryType
+import _root_.io.github.netvl.picopickle.{TypesComponent, DefaultPickler, BackendComponent}
 import org.bson._
 import org.bson.types.ObjectId
 
@@ -19,9 +20,7 @@ trait MongodbBsonSerializersComponent {
     ReadWriter.writing[T](identity).reading { case value: T => value }
       .orThrowing(whenReading = classTag[T].runtimeClass.getSimpleName, expected = classTag[T].runtimeClass.getSimpleName)
 
-  implicit val bsonValueReadWriter: ReadWriter[BsonValue] =
-    ReadWriter.writing[BsonValue](identity).reading(PartialFunction(identity))
-
+  implicit val bsonValueReadWriter: ReadWriter[BsonValue] = identityBsonReadWriter[BsonValue]
   implicit val bsonDocumentReadWriter: ReadWriter[BsonDocument] = identityBsonReadWriter[BsonDocument]
   implicit val bsonArrayReadWriter: ReadWriter[BsonArray] = identityBsonReadWriter[BsonArray]
   implicit val bsonStringReadWriter: ReadWriter[BsonString] = identityBsonReadWriter[BsonString]
@@ -35,6 +34,10 @@ trait MongodbBsonSerializersComponent {
   implicit val bsonDateTimeReadWriter: ReadWriter[BsonDateTime] = identityBsonReadWriter[BsonDateTime]
   implicit val bsonBinaryReadWriter: ReadWriter[BsonBinary] = identityBsonReadWriter[BsonBinary]
   implicit val bsonSymbolReadWriter: ReadWriter[BsonSymbol] = identityBsonReadWriter[BsonSymbol]
+  implicit val bsonTimestampReadWriter: ReadWriter[BsonTimestamp] = identityBsonReadWriter[BsonTimestamp]
+  implicit val bsonRegexReadWriter: ReadWriter[BsonRegularExpression] = identityBsonReadWriter[BsonRegularExpression]
+  implicit val bsonJavaScriptReadWriter: ReadWriter[BsonJavaScript] = identityBsonReadWriter[BsonJavaScript]
+  implicit val bsonJavaScriptWithScopeReadWriter: ReadWriter[BsonJavaScriptWithScope] = identityBsonReadWriter[BsonJavaScriptWithScope]
 
   // TODO: add a test for this
   implicit val dateReadWriter: ReadWriter[Date] = ReadWriter.writing[Date](d => backend.makeDateTime(d.getTime))
@@ -47,10 +50,16 @@ trait MongodbBsonSerializersComponent {
       case backend.BsonExtract.Symbol(sym) => sym
     }.orThrowing(whenReading = "symbol", expected = "symbol")
 
-  implicit val binaryReadWriter: ReadWriter[Array[Byte]] = ReadWriter.writing(backend.makeBinary)
+  implicit val defaultBinaryReadWriter: ReadWriter[Array[Byte]] = ReadWriter.writing[Array[Byte]](backend.makeBinary(_))
     .reading {
-      case backend.BsonExtract.Binary(arr) => arr
+      case backend.BsonExtract.Binary(arr, _) => arr
     }.orThrowing(whenReading = "array of bytes", expected = "binary")
+
+  implicit val binaryReadWriter: ReadWriter[(Array[Byte], BsonBinaryType)] =
+    ReadWriter.writing[(Array[Byte], BsonBinaryType)]((backend.makeBinary _).tupled)
+      .reading {
+        case backend.BsonExtract.Binary(arr, tpe) => (arr, tpe)
+      }.orThrowing(whenReading = "BSON binary", expected = "binary")
 
   implicit val intReadWriter: ReadWriter[Int] = ReadWriter.writing(backend.makeInt32)
     .reading {

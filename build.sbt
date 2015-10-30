@@ -32,12 +32,13 @@ val commonSettings = commonCommonSettings ++ Seq(
     </scm>
 )
 
+val shapelessOnly = Seq("com.chuusai" %% "shapeless" % "2.2.3")
+
 def shapelessDependency(scalaVersion: String) = scalaVersion match {
-  case v if v.startsWith("2.10") => Seq(
-    "com.chuusai" %% "shapeless" % "2.2.3",
-    compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
-  )
-  case _ => Seq("com.chuusai" %% "shapeless" % "2.2.3")
+  case v if v.startsWith("2.10") =>
+    shapelessOnly :+ compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
+  case _ =>
+    shapelessOnly
 }
 
 def commonDependencies(scalaVersion: String) =
@@ -127,8 +128,15 @@ lazy val jawn = project
     )
   )
 
+lazy val bsonCommon = project
+  .dependsOn(core)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "picopickle-common-bson"
+  )
+
 lazy val mongodb = project
-  .dependsOn(core % "compile->compile;test->test")
+  .dependsOn(core % "compile->compile;test->test", bsonCommon)
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle-backend-mongodb-bson",
@@ -140,8 +148,21 @@ lazy val mongodb = project
     )
   )
 
+lazy val reactivemongo = project
+  .dependsOn(core % "compile->compile;test->test", bsonCommon)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "picopickle-backend-reactivemongo-bson",
+
+    sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
+
+    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
+      "org.reactivemongo" %% "reactivemongo-bson" % "0.11.7"
+    )
+  )
+
 lazy val root = (project in file("."))
-  .aggregate(core, jawn, mongodb)
+  .aggregate(core, jawn, bsonCommon, mongodb, reactivemongo)
   .settings(commonCommonSettings: _*)
   .settings(unidocSettings: _*)
   .settings(site.settings ++ ghpages.settings: _*)
