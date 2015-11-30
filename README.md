@@ -464,17 +464,17 @@ You can find an example of this technique in the [official BSON backend implemen
 picopickle defines `Writer` and `Reader` basic types in `TypesComponent` which are called *serializers*. 
 They are responsible for converting arbitrary types to their backend representation and back, respectively. 
 The most basic way to construct custom serializers is to use `apply` method on `Reader` and `Writer` 
-companion objects, which take `PartialFunction[backend.BValue, T]` and `PartialFunction[T, backend.BValue]`, 
-respectively (you can find an example of both above).
+companion objects, which take `PartialFunction[backend.BValue, T]` and `T => backend.BValue`, 
+respectively (you can find examples of both above).
 
 (Terminology note: `Writer` and `Reader` are called *serializers*, while typed serialization objects described above,
 that is, the ones returned by the call of `serializer[T]` method, are called *serializer objects*. While related,
 these are different things. Serializer objects are completely optional, you won't have to use them if you don't want;
 on the other hand, serializers are the key entities in picopickle and you can't do away with them.)
 
-Despite that `Writer` takes a partial function, it still should be able to serialize any values
-of its corresponding type. `Reader`, however, can fail to match the backend representation. See below for more
-information on error handling in picopickle.
+Any `Writer`, since it receives a total function, should be able to serialize any values of its corresponding type.
+`Reader`, however, can fail to match the backend representation. See below for more information on error
+handling in picopickle.
 
 `TypesComponent` also defines a combined serializer called `ReadWriter`:
 
