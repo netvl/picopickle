@@ -473,8 +473,8 @@ these are different things. Serializer objects are completely optional, you won'
 on the other hand, serializers are the key entities in picopickle and you can't do away with them.)
 
 Despite that `Writer` takes a partial function, it still should be able to serialize any values
-of its corresponding type. `Reader`, however, can fail to match the backend representation. Currently
-it will usually lead to a `MatchError` thrown by the `read()` call; this is going to improve in future.
+of its corresponding type. `Reader`, however, can fail to match the backend representation. See below for more
+information on error handling in picopickle.
 
 `TypesComponent` also defines a combined serializer called `ReadWriter`:
 
