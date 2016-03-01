@@ -6,6 +6,7 @@ import scala.{collection => coll}
 import scala.collection.{mutable => mut}
 import scala.collection.{immutable => imm}
 import scala.collection.generic.CanBuildFrom
+import scala.reflect.macros.whitebox
 import scala.language.higherKinds
 import scala.language.experimental.macros
 
@@ -32,17 +33,17 @@ trait MapPicklingDisabledByDefault extends MapPicklingComponent {
   this: ObjectKeyTypesComponent =>
 
   // here it is disabled via an aborting macro
-  override implicit def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T] = macro MapPicklingDisabledByDefaultMacros.killItself[T]
+  override implicit def mapPicklingIsAllowedByDefault[T]: MapPicklingIsAllowed[T] =
+    macro MapPicklingDisabledByDefaultMacros.killItself[T]
 
   // but another implicit value is defined for all keys which are readable/writable as object keys
   implicit def mapPicklingIsAllowedForAppropriateKeyTypes[T: ObjectKeyReader: ObjectKeyWriter] =
     allowMapPicklingWithKeysOfType[T]
 }
 
-object MapPicklingDisabledByDefaultMacros {
-  import BinaryVersionSpecificDefinitions._
-
-  def killItself[T: c.WeakTypeTag](c: Context): c.Expr[T] =
+@macrocompat.bundle
+class MapPicklingDisabledByDefaultMacros(val c: whitebox.Context) {
+  def killItself[T: c.WeakTypeTag]: c.Expr[T] =
     c.abort(c.enclosingPosition, "aborting expansion of an offending implicit")
 }
 

@@ -1,10 +1,10 @@
 package io.github.netvl.picopickle
 
 import scala.language.experimental.macros
+import scala.reflect.macros.whitebox
 import shapeless._
 
 import io.github.netvl.picopickle.SourceTypeTag.@@@
-import BinaryVersionSpecificDefinitions._
 
 trait DefaultValuesComponent {
 
@@ -20,35 +20,36 @@ trait DefaultValuesComponent {
   object DefaultValue {
     type Aux[T0, K0, V0] = DefaultValue { type T = T0; type K = K0; type V = V0 }
     implicit def materializeDefaultValue[T, K <: Symbol, V]: DefaultValue.Aux[T, K, V] =
-      macro DefaultValueMacrosImpl.materializeDefaultValueImpl[DefaultValue.Aux[T, K, V], T, K, V]
+      macro DefaultValueMacros.materializeDefaultValueImpl[DefaultValue.Aux[T, K, V], T, K, V]
   }
 }
 
-trait DefaultValueMacros extends ContextExtensions with SingletonTypeMacrosExtensions {
+@macrocompat.bundle
+class DefaultValueMacros(override val c: whitebox.Context) extends SingletonTypeMacros(c) {
   import c.universe._
 
   def materializeDefaultValueImpl[S, T: WeakTypeTag, K: WeakTypeTag, V: WeakTypeTag]: Tree = {
-    val kTpe = dealias(weakTypeOf[K])
+    val kTpe = weakTypeOf[K].dealias
     val fieldName = kTpe match {
-      case SingletonSymbolTypeE(s) => s
+      case SingletonSymbolType(s) => s
       case _ => c.abort(c.enclosingPosition, s"Type $kTpe is not a tagged symbol type")
     }
 
     val tTpe = weakTypeOf[T]
-    val tCompanionSym = companion(tTpe.typeSymbol)
+    val tCompanionSym = tTpe.typeSymbol.companion
     if (tCompanionSym == NoSymbol)
       c.abort(c.enclosingPosition, s"No companion symbol is available for type $tTpe")
 
-    val ctorSym = decl(tTpe, names.CONSTRUCTOR).asTerm.alternatives.collectFirst {
+    val ctorSym = tTpe.decl(termNames.CONSTRUCTOR).asTerm.alternatives.collectFirst {
       case ctor: MethodSymbol if ctor.isPrimaryConstructor => ctor
     }.getOrElse(c.abort(c.enclosingPosition, s"Could not find the primary constructor for type $tTpe"))
 
     val vTpe = weakTypeOf[V]
 
-    val defaultMethodName = paramLists(ctorSym).headOption.flatMap { argSyms =>
+    val defaultMethodName = ctorSym.paramLists.headOption.flatMap { argSyms =>
       argSyms.map(_.asTerm).zipWithIndex.collect {
         case (p, i) if p.isParamWithDefault && p.name.toString == fieldName && p.typeSignature =:= vTpe =>
-          termName(s"$$lessinit$$greater$$default$$${i+1}")  // TODO: not sure if this couldn't be made more correct
+          TermName(s"$$lessinit$$greater$$default$$${i+1}")  // TODO: not sure if this couldn't be made more correct
       }.headOption
     }
 
@@ -57,7 +58,7 @@ trait DefaultValueMacros extends ContextExtensions with SingletonTypeMacrosExten
       case None => q"_root_.scala.None"
     }
 
-    val generatedClassName = typeName(s"DefaultValue$$${tTpe.typeSymbol.name}$$$fieldName")
+    val generatedClassName = TypeName(s"DefaultValue$$${tTpe.typeSymbol.name}$$$fieldName")
     q"""
       {
         final class $generatedClassName extends DefaultValue {

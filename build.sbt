@@ -1,8 +1,8 @@
-crossScalaVersions := Seq("2.10.5", "2.11.7")
+crossScalaVersions := Seq("2.10.6", "2.11.7")
 
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.2.0",
+  version := "0.2.1",
   scalaVersion := "2.11.7",
 
   autoAPIMappings := true
@@ -32,25 +32,22 @@ val commonSettings = commonCommonSettings ++ Seq(
     </scm>
 )
 
-def shapelessDependency(scalaVersion: String) = scalaVersion match {
-  case v if v.startsWith("2.10") => Seq(
-    "com.chuusai" %% "shapeless" % "2.2.3",
-    compilerPlugin("org.scalamacros" %% "paradise" % "2.0.1" cross CrossVersion.full)
-  )
-  case _ => Seq("com.chuusai" %% "shapeless" % "2.2.3")
-}
+def commonDependencies = Seq(
+  "org.typelevel" %% "macro-compat" % Versions.macroCompat,
+  compilerPlugin("org.scalamacros" % "paradise" % Versions.paradise cross CrossVersion.full),
 
-def commonDependencies(scalaVersion: String) =
-  Seq("org.scalatest" %% "scalatest" % "2.2.5" % "test") ++
-    shapelessDependency(scalaVersion)
+  "com.chuusai" %% "shapeless" % Versions.shapeless,
+  "org.scalatest" %% "scalatest" % Versions.scalatest % "test"
+)
 
 lazy val core = project
   .settings(commonSettings: _*)
   .settings(
     name := "picopickle-core",
 
-    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided",
+      "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided"
     ),
 
     sourceGenerators in Compile += task[Seq[File]] {
@@ -122,8 +119,8 @@ lazy val jawn = project
 
     sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
 
-    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
-      "org.spire-math" %% "jawn-parser" % "0.8.0"
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "org.spire-math" %% "jawn-parser" % Versions.jawn
     )
   )
 
@@ -135,8 +132,8 @@ lazy val mongodb = project
 
     sourceGenerators in Test += TestGeneration.generatedFiles(sourceManaged in Test).taskValue,
 
-    libraryDependencies ++= commonDependencies(scalaVersion.value) ++ Seq(
-      "org.mongodb" % "bson" % "3.0.2"
+    libraryDependencies ++= commonDependencies ++ Seq(
+      "org.mongodb" % "bson" % Versions.mongodbBson
     )
   )
 
