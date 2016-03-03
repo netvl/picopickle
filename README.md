@@ -1,4 +1,4 @@
-picopickle 0.2.0
+picopickle 0.2.1
 ================
 
 picopickle is a serialization library for Scala. Its main features are:
@@ -60,7 +60,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.1"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -84,7 +84,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.1"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -1149,7 +1149,7 @@ picopickle has several "official" backends. One of them, provided by `picopickle
 into a tree of collections. This backend is available immediately with only the `core` dependency:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.1"
 ```
 
 In this backend the following AST mapping holds:
@@ -1187,7 +1187,7 @@ Another official backend is used for conversion to and from JSON. JSON parsing i
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.1"
 ```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
@@ -1207,7 +1207,7 @@ because it would require a completely different architecture.
 Another official backend is used for conversion to and from BSON AST, as defined by [MongoDB BSON][bson] library.
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-mongodb-bson" % "0.2.0"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-mongodb-bson" % "0.2.1"
 ```
 
 In this backend the following AST mapping holds:
@@ -1446,9 +1446,14 @@ object Serializers {
 <a name="changelog"></a> Changelog
 ----------------------------------
 
+### 0.2.1
+
+* Updated shapeless to 2.3.0, macroparadise to 2.1.0, jawn to 0.8.4, bson to 3.2.2, scala to 2.10.6
+* Switched to macro-compat instead of hand-written macro API for 2.10 and 2.11
+
 ### 0.2.0
 
-* Updated shapeless to 2.3.3, jawn to 0.8.8, scala to 2.11.7
+* Updated shapeless to 2.2.3, jawn to 0.8.8, scala to 2.11.7
 * Fixed support for varargs (consequence of shapeless update)
 * Improved reader interface (added `readOrElse` method and changed existing code to depend on it)
 * Added proper error handling (#2)

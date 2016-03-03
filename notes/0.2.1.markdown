@@ -1,0 +1,6 @@
+This release contains only internal changes and dependency versions bumps.
+
+* Updated shapeless to 2.3.0, macroparadise to 2.1.0, jawn to 0.8.4, bson to 3.2.2, scala to 2.10.6. The most
+  important update here is shapeless 2.3.0.
+* After shapless, switched to [macro-compat](https://github.com/milessabin/macro-compat) instead of hand-written
+  macro API for 2.10 and 2.11. This should greatly simplify supporting custom macros.
