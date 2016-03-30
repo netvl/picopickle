@@ -57,4 +57,8 @@ object Fixtures {
   object WithVarargs {
     case class A(x: Int, y: String*)
   }
+
+  object ValueClass {
+    case class A(value: String) extends AnyVal
+  }
 }

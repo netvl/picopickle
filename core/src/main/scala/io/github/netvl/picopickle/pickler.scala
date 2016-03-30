@@ -34,7 +34,8 @@ trait DefaultPickler
   with MapPicklingEnabledByDefault
   with TupleReaderWritersComponent
   with ConvertersComponent
-  with TypesComponent {
+  with TypesComponent
+  with ValueClassesReaderWritersComponent {
   this: BackendComponent =>
 
   override def read[T](value: backend.BValue)(implicit r: Reader[T]): T = r.read(value)

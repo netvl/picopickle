@@ -171,6 +171,14 @@ cases:
         - 'Map("x" -> 10, "y" -> "hi")'
         - '"""{"x":10,"y":"hi"}"""'
         - 'new BsonDocument().append("x", new BsonInt32(10)).append("y", new BsonString("hi"))'
+  - name: value class to an object
+    prepend: |
+      import ValueClass._
+    rw:
+      - - 'A("hi")'
+        - '"hi"'
+        - '""""hi""""'
+        - 'new new BsonString("hi")'
   - name: case object to an empty object
     prepend: |
       import CaseObject._
