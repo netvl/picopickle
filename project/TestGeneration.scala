@@ -8,10 +8,9 @@ import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
 import sbt.Keys._
 import sbt._
-import shapeless.syntax.typeable._
 import shapeless._
+import shapeless.syntax.typeable._
 
-import scala.collection.GenMap
 import scala.collection.convert.decorateAsScala._
 import scala.language.higherKinds
 
@@ -62,6 +61,7 @@ object RwTestGenerator extends TestGenerator {
 
 case class TestCase(name: String,
                     prepend: Option[String],
+                    additionalFixtureExtends: Option[String],
                     items: Map[String, Any])
 case class TestVariant(name: String,
                        targetProject: String,
@@ -82,7 +82,8 @@ object TestGeneration {
         TestCase(
           c("name").ecast[String],
           c.get("prepend").ecast[Option[String]],
-          c - "name" - "prepend"
+          c.get("additionalFixtureExtends").map(_.ecast[String]),
+          c - "name" - "prepend" - "additionalFixtureExtends"
         )
     }
   }
@@ -142,19 +143,22 @@ object TestGeneration {
 
   def runGenerators(definition: TestDefinition, variant: TestVariant, testCase: TestCase): String = {
     val body = testCase.items.toVector.map {
-      case (k, v) =>
-        val gen = TestGenerator.forName(k)
-        val (moreConfig, items) = v match {
+      case (generatorName, generatorInput) =>
+        val gen = TestGenerator.forName(generatorName)
+        val (moreConfig, items) = generatorInput match {
           case `Map[String, Any]`(m) =>
             (m.getOrElse("config", Map.empty).ecast[Map[String, Any]], m("input").ecast[Vector[Any]])
           case `Vector[Any]`(c) =>
             (Map.empty[String, Any], c)
         }
-        gen.generate(definition.global.getOrElse(k, Map.empty) ++ moreConfig, variant.name, items)
+        gen.generate(definition.global.getOrElse(generatorName, Map.empty) ++ moreConfig, variant.name, items)
     }.mkString
 
-    val finalBody = Strings.reindent(testCase.prepend.fold(body)(_ + '\n' + body), 2)
-    s"""|"${testCase.name}" in {
+    val finalBodyUnindented = testCase.prepend
+      .map(_.interpolate(variant.context))
+      .fold(body)(_ + "\n" + body)
+    val finalBody = Strings.reindent(finalBodyUnindented, 2)
+    s"""|"${testCase.name}" in new Fixture ${testCase.additionalFixtureExtends.map(_ + " ").getOrElse("")}{
         |$finalBody
         |}""".stripMargin
   }
@@ -165,7 +169,7 @@ object TestGeneration {
     testDefinitions.flatMap(evaluateDefinitionIn(projectId, streams.value, _)).map { definition =>
       val pkg = definition.packageName.replace('.', File.separatorChar)
       val targetFile = sourceRoot.value / pkg / definition.fileName
-      IO.write(targetFile, definition.body, IO.utf8)
+      IO.write(targetFile, definition.body, StandardCharsets.UTF_8)
       targetFile
     }
   }
@@ -221,17 +225,11 @@ object YamlUtils {
     case n: Long => n
     case n: Double => n
     case s: String => s
+    case b: Boolean => b
   }
 }
 
 object ImplicitUtils {
-  import scala.reflect.classTag
-
-  // XXX: for whatever reason since shapeless 2.2.3 we need this o_O
-  implicit def vectorTypeable[T](implicit t: Typeable[T]): Typeable[Vector[T]] = Typeable.genTraversableTypeable[Vector, T](
-    classTag[Vector[_]], t
-  )
-
   val `Map[String, Any]` = TypeCase[Map[String, Any]]
   val `Vector[Any]` = TypeCase[Vector[Any]]
 
