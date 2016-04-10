@@ -1,9 +1,9 @@
-crossScalaVersions := Seq("2.10.6", "2.11.7")
+crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.2.1",
-  scalaVersion := "2.11.7",
+  version := "0.3.0",
+  scalaVersion := "2.11.8",
 
   autoAPIMappings := true
 )
@@ -69,7 +69,7 @@ lazy val core = project
            |    Reader.reading {
            |      case backend.Extract.Array(Vector($vars)) =>
            |        Tuple$i($reads)
-           |    }.orThrowing(whenReading = "${i}-tuple", expected = "array")
+           |    }.orThrowing(whenReading = "$i-tuple", expected = "array")
          """.stripMargin
 
         val tupleWriter =

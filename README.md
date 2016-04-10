@@ -1,4 +1,4 @@
-picopickle 0.2.1
+picopickle 0.3.0
 ================
 
 picopickle is a serialization library for Scala. Its main features are:
@@ -45,6 +45,7 @@ Contents
   + [Varargs](#varargs)
   + [Nulls](#nulls)
   + [Accurate numbers serialization](#accurate-numbers-serialization)
+  + [Value classes](#value-classes)
 * [Official backends](#official-backends)
   + [Collections pickler](#collections-pickler)
   + [JSON pickler](#json-pickler)
@@ -60,7 +61,7 @@ The library is published to the Maven central, so you can just add the following
 to your `build.sbt` file in order to use the core library:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.1"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.3.0"
 ```
 
 The library is compiled for both 2.10 and 2.11 Scala versions. If you use 2.10, however,
@@ -84,7 +85,7 @@ backend, and an additional JSON backend based on [Jawn] parser is available as
 `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.1"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.3.0"
 ```
 
 Jawn backend uses Jawn parser (naturally!) to read JSON strings but it uses custom renderer
@@ -1140,6 +1141,20 @@ picopickle also provides a special trait, `DoubleOrStringNumberRepr`, which prov
 as a `BNumber` if it can be represented precisely in `Double` as a `BString` otherwise.
 This trait is useful e.g. when writing a JSON-based backend.
 
+### <a name="value-classes"></a> Value classes
+
+With picopickle, you can opt-in to serialize value classes (i.e. the ones extending the `AnyVal` class) directly
+as values, bypassing the usual map representation of objects. To enable this behavior, extend your pickler with
+`ValueClassReaderWritersComponent`:
+
+```scala
+trait MyJsonPickler extends JsonPickler with ValueClassReaderWritersComponent
+import MyJsonPickler._
+
+class A(val x: Int) extends AnyVal
+writeString(A(10)) shouldEqual "10"  // not """{"x":10}"""
+```
+
 <a name="official-backends"></a> Official backends
 --------------------------------------------------
 
@@ -1149,7 +1164,7 @@ picopickle has several "official" backends. One of them, provided by `picopickle
 into a tree of collections. This backend is available immediately with only the `core` dependency:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.2.1"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-core" % "0.3.0"
 ```
 
 In this backend the following AST mapping holds:
@@ -1187,7 +1202,7 @@ Another official backend is used for conversion to and from JSON. JSON parsing i
 JSON rendering, however, is custom. This backend is available in `picopickle-backend-jawn`:
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.2.1"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-jawn" % "0.3.0"
 ```
 
 This backend's AST is defined in `io.github.netvl.picopickle.backends.jawn.JsonAst` and consists of several
@@ -1207,7 +1222,7 @@ because it would require a completely different architecture.
 Another official backend is used for conversion to and from BSON AST, as defined by [MongoDB BSON][bson] library.
 
 ```scala
-libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-mongodb-bson" % "0.2.1"
+libraryDependencies += "io.github.netvl.picopickle" %% "picopickle-backend-mongodb-bson" % "0.3.0"
 ```
 
 In this backend the following AST mapping holds:
@@ -1445,6 +1460,11 @@ object Serializers {
 
 <a name="changelog"></a> Changelog
 ----------------------------------
+
+### 0.3.0
+
+* Updated scala to 2.11.8
+* Added support for serializing value classes as values
 
 ### 0.2.1
 

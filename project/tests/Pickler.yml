@@ -4,22 +4,23 @@ template: |
 
   import scala.collection.immutable.ListMap
   import org.scalatest.{FreeSpec, ShouldMatchers}
+  import io.github.netvl.picopickle.ValueClassReaderWritersComponent
   import io.github.netvl.picopickle.Fixtures._
   ${additionalImports}
 
   class ${name}PicklerTest extends FreeSpec with ShouldMatchers {
-    import ${picklerClass}._
+    trait Fixture extends ${picklerClass} {
+      def testRW[T: Reader: Writer](t: T, a: ${targetType}): Unit = {
+        val s = ${write}(t)
+        s shouldEqual a
+        val u = ${read}[T](s)
+        u shouldEqual t
+      }
 
-    def testRW[T: Reader: Writer](t: T, a: ${targetType}): Unit = {
-      val s = ${write}(t)
-      s shouldEqual a
-      val u = ${read}[T](s)
-      u shouldEqual t
-    }
-
-    def testR[T: Reader](t: T, a: ${targetType}): Unit = {
-      val u = ${read}[T](a)
-      u shouldEqual t
+      def testR[T: Reader](t: T, a: ${targetType}): Unit = {
+        val u = ${read}[T](a)
+        u shouldEqual t
+      }
     }
 
     "A ${descriptiveName} pickler" - {
@@ -171,6 +172,15 @@ cases:
         - 'Map("x" -> 10, "y" -> "hi")'
         - '"""{"x":10,"y":"hi"}"""'
         - 'new BsonDocument().append("x", new BsonInt32(10)).append("y", new BsonString("hi"))'
+  - name: value class to a value
+    prepend: |
+      import ValueClass._
+    additionalFixtureExtends: with ValueClassReaderWritersComponent
+    rw:
+      - - 'A("hi")'
+        - '"hi"'
+        - '""""hi""""'
+        - 'new BsonString("hi")'
   - name: case object to an empty object
     prepend: |
       import CaseObject._
