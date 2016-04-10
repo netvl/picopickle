@@ -4,7 +4,7 @@ incompatible with its previous versions.
 
 * Added support for serializing value classes, that is, those extending `AnyVal`, as regular values. While this
   was absolutely possible to do manually in previous versions of picopickle, this release introduces tools to make
-  it automatic. You can find more in the [readme](value-classes).
+  it automatic. You can find more in the [readme][value-classes].
 * Updated Scala version to 2.11.8.
 
   [value-classes]: https://github.com/netvl/picopickle#value-classes
