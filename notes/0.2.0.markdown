@@ -1,6 +1,6 @@
 This release contains a lot of changes and new features.
 
-### Updated shapeless to 2.3.3, jawn to 0.8.8, scala to 2.11.7.
+### Updated shapeless to 2.2.3, jawn to 0.8.8, scala to 2.11.7.
 
 In particular, updating shapeless allowed using picopickle with case classes with variable arguments.
   
