@@ -25,7 +25,7 @@ trait SealedTraitDiscriminatorComponent {
 }
 
 trait DefaultSealedTraitDiscriminatorComponent extends SealedTraitDiscriminatorComponent {
-  override val defaultDiscriminatorKey: String = "$variant"
+  override lazy val defaultDiscriminatorKey: String = "$variant"
 }
 
 @macrocompat.bundle
