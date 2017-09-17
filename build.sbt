@@ -1,9 +1,9 @@
-crossScalaVersions := Seq("2.10.6", "2.11.8")
+crossScalaVersions := Seq("2.10.6", "2.11.11", "2.12.3")
 
 val commonCommonSettings = Seq(
   organization := "io.github.netvl.picopickle",
-  version := "0.3.0",
-  scalaVersion := "2.11.8",
+  version := "0.3.2",
+  scalaVersion := "2.12.3",
 
   autoAPIMappings := true
 )

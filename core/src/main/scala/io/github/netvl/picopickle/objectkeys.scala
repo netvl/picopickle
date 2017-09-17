@@ -30,7 +30,7 @@ trait ObjectKeyTypesComponent {
   type ObjectKeyReadWriter[T] = ObjectKeyReader[T] with ObjectKeyWriter[T]
 
   object ObjectKeyReadWriter {
-    def apply[T](from: String => T): ObjectKeyReadWriter[T] = apply(_.toString, from)
+    def apply[T](from: String => T): ObjectKeyReadWriter[T] = apply((t: T) => t.toString, from)
 
     def apply[T](to: T => String, from: String => T): ObjectKeyReadWriter[T] = new ObjectKeyReader[T] with ObjectKeyWriter[T] {
       override def write(value: T): String = to(value)
