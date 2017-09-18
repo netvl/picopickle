@@ -4,7 +4,7 @@ import scala.collection.immutable.{TreeMap, TreeSet}
 import scala.collection.mutable
 import shapeless._
 
-import org.scalatest.{FreeSpec, ShouldMatchers}
+import org.scalatest.{FreeSpec, Matchers}
 
 object ConvertersTestBase {
   object ComplexObjects {
@@ -13,7 +13,7 @@ object ConvertersTestBase {
   }
 }
 
-trait ConvertersTestBase extends FreeSpec with ShouldMatchers with DefaultPickler {
+trait ConvertersTestBase extends FreeSpec with Matchers with DefaultPickler {
   this: BackendComponent =>
 
   import backend._

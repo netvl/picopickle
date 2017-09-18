@@ -85,10 +85,9 @@ object JawnFacade extends MutableFacade[JsonAst.JsonValue] {
   override def jarray(vs: mutable.Builder[JsonValue, Vector[JsonValue]]): JsonValue =
     JsonArray(vs.result())
 
-  override def jint(s: String): JsonValue = JsonNumber(s.toDouble)
-  override def jnum(s: String): JsonValue = JsonNumber(s.toDouble)
+  override def jnum(s: CharSequence, decIndex: Int, expIndex: Int): JsonValue = JsonNumber(s.toString.toDouble)
 
-  override def jstring(s: String): JsonValue = JsonString(s)
+  override def jstring(s: CharSequence): JsonValue = JsonString(s.toString)
 
   override def jtrue(): JsonValue = JsonTrue
   override def jfalse(): JsonValue = JsonFalse
@@ -103,7 +102,7 @@ private[jawn] trait MutableFacade[J] extends Facade[J] {
   override def singleContext(): FContext[J] = new FContext[J] {
     private var value: J = _
     override def isObj: Boolean = false
-    override def add(s: String): Unit = value = jstring(s)
+    override def add(s: CharSequence): Unit = value = jstring(s)
     override def add(v: J): Unit = value = v
     override def finish: J = value
   }
@@ -112,8 +111,8 @@ private[jawn] trait MutableFacade[J] extends Facade[J] {
     private var key: String = null
     private val builder = Map.newBuilder[String, J]
     override def isObj: Boolean = true
-    override def add(s: String): Unit =
-      if (key == null) key = s
+    override def add(s: CharSequence): Unit =
+      if (key == null) key = s.toString
       else {
         builder += key -> jstring(s)
         key = null
@@ -128,7 +127,7 @@ private[jawn] trait MutableFacade[J] extends Facade[J] {
   override def arrayContext(): FContext[J] = new FContext[J] {
     private val builder = Vector.newBuilder[J]
     override def isObj: Boolean = false
-    override def add(s: String): Unit = builder += jstring(s)
+    override def add(s: CharSequence): Unit = builder += jstring(s)
     override def add(v: J): Unit = builder += v
     override def finish: J = jarray(builder)
   }

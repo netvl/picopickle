@@ -3,12 +3,12 @@ template: |
   package ${package}
 
   import scala.collection.immutable.ListMap
-  import org.scalatest.{FreeSpec, ShouldMatchers}
+  import org.scalatest.{FreeSpec, Matchers}
   import io.github.netvl.picopickle.ValueClassReaderWritersComponent
   import io.github.netvl.picopickle.Fixtures._
   ${additionalImports}
 
-  class ${name}PicklerTest extends FreeSpec with ShouldMatchers {
+  class ${name}PicklerTest extends FreeSpec with Matchers {
     trait Fixture extends ${picklerClass} {
       def testRW[T: Reader: Writer](t: T, a: ${targetType}): Unit = {
         val s = ${write}(t)
