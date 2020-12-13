@@ -1,6 +1,8 @@
 picopickle 0.3.2
 ================
 
+**Unmaintained: use various alternatives like Circe, uPickle or other format-specific libs.**
+
 picopickle is a serialization library for Scala. Its main features are:
 
 * Small and almost dependency-less (the core library depends only on [shapeless]).
